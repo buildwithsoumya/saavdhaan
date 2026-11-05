@@ -16,7 +16,7 @@ STAGE_NAMES = {"S1": "Authority", "S2": "Fear", "S3": "Isolation", "S4": "Urgenc
 LEVEL_NAMES = {0: "Safe", 1: "Caution", 2: "Saavdhaan", 3: "Stop"}
 WINDOW_S = 600
 NEGATION_SPAN = 6  # tokens either side of an S5 phrase searched for a negation
-PUNCT_BREAK = "[.?!।॥,;:|\n]"
+PUNCT_BREAK = "[.?!।॥;|\n]"  # not commas: "if anyone asks for an OTP, don't give it"
 
 
 @dataclass

@@ -123,3 +123,9 @@ def test_every_non_hindi_native_list_is_flagged_for_review():
     for code, block in langs.items():
         if code not in ("hi", "en"):
             assert block.get("needs_native_review") is True, code
+
+
+def test_genuine_warnings_and_verification_visits_stay_quiet():
+    assert "S5" not in stages("If anyone asks for an OTP, don't give it, and never transfer money.")
+    assert "S5" not in stages("नमस्ते, मैं थाने से बोल रहा हूँ, आपके पासपोर्ट के पुलिस वेरिफिकेशन के लिए।")
+    assert "S5" in stages("अभी के अभी वेरिफिकेशन अमाउंट भेजिए")
