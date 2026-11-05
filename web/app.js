@@ -257,7 +257,10 @@ async function toggle() {
     ws?.close();
     stopAudio();
     conn("सुन नहीं रहा · Not listening");
+    $("report-row").hidden = store.get("record", "0") !== "1";
+    $("report-link").hidden = true;
   } else {
+    $("report-row").hidden = true;
     try {
       await startAudio();
     } catch (err) {
@@ -275,7 +278,26 @@ async function toggle() {
   $("listen-label").textContent = listening ? "सुनना बंद करें · Stop listening" : "सुनना शुरू करें · Start listening";
 }
 
+async function makeReport() {
+  const btn = $("report");
+  btn.disabled = true;
+  btn.textContent = "रिपोर्ट बन रही है (1–2 मिनट)… · Making report…";
+  try {
+    const r = await fetch(`/api/report/${callId}`, { method: "POST" });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    $("report-link").href = body.url;
+    $("report-link").hidden = false;
+    btn.textContent = "रिपोर्ट तैयार · Report ready";
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "दोबारा कोशिश करें · Try again";
+    conn(`रिपोर्ट नहीं बनी · Report failed: ${err.message}`);
+  }
+}
+
 initSettings();
+$("report").onclick = makeReport;
 renderStages(null);
 renderLevel(0);
 $("listen").onclick = toggle;
