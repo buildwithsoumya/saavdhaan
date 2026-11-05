@@ -35,7 +35,7 @@ body[data-level="2"] { --level-ink: var(--danger); }
 body[data-level="3"] { --level-ink: var(--stop); }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; overflow-x: clip; } /* the stamp animation overshoots briefly */
 body {
   margin: 0;
   background: var(--paper);
@@ -125,6 +125,23 @@ body.stamped .stamp { animation: stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
 .conn { margin: 0; font-size: 1rem; color: var(--ink-soft); }
 .report-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; margin: 4px 0 0; }
 .report-row a { color: var(--ink); font-weight: 700; text-underline-offset: 4px; }
+
+/* ---- honeypot ---- */
+.honeypot {
+  display: grid;
+  gap: 12px;
+  padding: 18px 16px;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  background: #f4f8fb;
+  text-align: center;
+  justify-items: center;
+}
+.honeypot > div { display: grid; gap: 12px; justify-items: center; }
+.hp-lead { margin: 0; font-size: 1.4rem; font-weight: 700; }
+.hp-lead [lang="en"] { display: block; font-size: 0.8em; font-weight: 600; color: var(--ink-soft); }
+.hp-done { margin: 0; font-size: 1.3rem; font-weight: 700; color: var(--stop); }
+.lines .persona { color: var(--ink-soft); font-style: italic; }
 
 /* ---- 1930 ---- */
 .helpline {
