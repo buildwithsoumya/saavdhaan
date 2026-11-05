@@ -9,3 +9,4 @@ data/
 
 # benchmark outputs (rendered/degraded audio, results)
 bench/out/
+.claude/settings.local.json
