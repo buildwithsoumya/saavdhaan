@@ -9,10 +9,10 @@ import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, gnani
+from app import alerts, enrol, gnani
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -111,6 +111,28 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
         await stream.close()
         if record and state.pcm:
             save_recording(call, bytes(state.pcm))
+
+
+@app.post("/api/voices")
+async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False)):
+    try:
+        return await enrol.enrol(await audio.read(), name, consent)
+    except enrol.EnrolError as e:
+        raise HTTPException(400, str(e))
+    except gnani.GnaniError as e:
+        raise HTTPException(502, f"voice service failed: {e}")
+
+
+@app.get("/api/voices")
+def list_voices():
+    return enrol.voices()
+
+
+@app.delete("/api/voices/{voice_id}")
+def delete_voice(voice_id: str):
+    if not enrol.delete(voice_id):
+        raise HTTPException(404, "no such voice")
+    return {"deleted": voice_id}
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
