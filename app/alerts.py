@@ -38,5 +38,8 @@ async def alert_audio(level: int, code: str | None, voice: str | None = None) ->
         text = text.replace("! ", "! <pauses> ", 1)
     path = _cached(f"timbre-v3.0|{voice}|{text}")
     if not path.exists():
-        path.write_bytes(await gnani.tts(text, voice=voice, language=f"{lang_of(code)}-IN"))
+        audio = await gnani.tts(text, voice=voice, language=f"{lang_of(code)}-IN")
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(audio)
+        tmp.replace(path)  # never leave a half-written file in the cache
     return path.read_bytes()

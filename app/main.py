@@ -5,6 +5,7 @@ Browsers cannot set WebSocket headers, so the API key lives only here.
 """
 import asyncio
 import json
+import re
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,9 +27,12 @@ class Call:
     tracker: Tracker = field(default_factory=Tracker)
     alerted: int = 0
     pcm: bytearray = field(default_factory=bytearray)
+    socket: WebSocket | None = None  # the browser connection currently serving this call
 
 
 CALLS: dict[str, Call] = {}
+MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
+CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
 def save_recording(call_id: str, pcm: bytes) -> Path:
@@ -45,21 +49,38 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 @app.websocket("/ws")
 async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
     await ws.accept()
-    state = CALLS.setdefault(call, Call())
+    if not CALL_ID.fullmatch(call):  # the id becomes a file name for recordings
+        await ws.close(code=1008)
+        return
+    state = CALLS.pop(call, None) or Call()
+    CALLS[call] = state  # most recently used last
+    while len(CALLS) > MAX_CALLS:
+        CALLS.pop(next(iter(CALLS)))
+    if state.socket is not None:  # a reconnect while the old socket is half-dead: one stream per call
+        try:
+            await state.socket.close()
+        except Exception:
+            pass
+    state.socket = ws
     send_lock = asyncio.Lock()
     alert_tasks = set()
 
     async def send(payload):
-        async with send_lock:
-            if isinstance(payload, bytes):
-                await ws.send_bytes(payload)
-            else:
-                await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
+        try:
+            async with send_lock:
+                if isinstance(payload, bytes):
+                    await ws.send_bytes(payload)
+                else:
+                    await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
 
     async def play_alert(level, lang):
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
-        except gnani.GnaniError as e:
+        except Exception as e:  # network, cache or synthesis failure: let the next transcript retry
+            state.alerted = min(state.alerted, level - 1)
             await send({"type": "error", "message": f"alert audio failed: {e}"})
             return
         await send({"type": "alert", "level": level, "text": alerts.alert_text(level, lang)})
@@ -103,11 +124,20 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
                 await stream.send_audio(msg["bytes"])
                 if record:
                     state.pcm += msg["bytes"]
-            elif msg.get("text") and json.loads(msg["text"]).get("type") == "stop":
-                break
+            elif msg.get("text"):
+                try:
+                    cmd = json.loads(msg["text"])
+                except ValueError:
+                    continue
+                if cmd.get("type") == "stop":
+                    break
     except WebSocketDisconnect:
         pass
     finally:
+        for t in list(alert_tasks):
+            t.cancel()
+        if state.socket is ws:
+            state.socket = None
         await stream.close()
         if record and state.pcm:
             save_recording(call, bytes(state.pcm))
