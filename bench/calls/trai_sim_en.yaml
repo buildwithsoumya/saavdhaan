@@ -1,0 +1,23 @@
+id: trai_sim_en
+label: scam
+template: trai_sim
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Chetana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: This call is from TRAI. Your number will be blocked within two hours.
+- speaker: victim
+  text: Why will it be blocked?
+- speaker: caller
+  text: Illegal messages were sent from a SIM in your name. An FIR is registered with the cyber cell.
+- speaker: victim
+  text: I only use it to talk to my children.
+- speaker: caller
+  text: To close the matter, tell me your bank details and Aadhaar number.
+- speaker: victim
+  text: I don't understand.

@@ -1,0 +1,23 @@
+id: son_accident_en
+label: scam
+template: son_accident
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Kalpana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: I am a constable calling from the police station. Your son has met with an accident and has been arrested.
+- speaker: victim
+  text: Oh god! Is he all right?
+- speaker: caller
+  text: He is fine, but don't tell your family, or the case will get bigger.
+- speaker: victim
+  text: Let me talk to him.
+- speaker: caller
+  text: Not now. Send money for bail immediately, by UPI, right now.
+- speaker: victim
+  text: How much?

@@ -1,0 +1,23 @@
+id: courier_drugs_cm
+label: scam
+template: courier_drugs
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Vasudha
+s5_turn: 4
+turns:
+- speaker: caller
+  text: मैं FedEx courier से बोल रहा हूँ। आपका एक parcel customs ने रोका है।
+- speaker: victim
+  text: मैंने तो कोई parcel नहीं भेजा।
+- speaker: caller
+  text: उसमें drugs और नकली passport मिले हैं। मामला narcotics department को गया है, आप पर case दर्ज होगा।
+- speaker: victim
+  text: अब मैं क्या करूँ?
+- speaker: caller
+  text: अभी के अभी verification amount भेजिए और AnyDesk app download कीजिए, नहीं तो police घर आएगी।
+- speaker: victim
+  text: रुकिए, मैं सोचती हूँ।

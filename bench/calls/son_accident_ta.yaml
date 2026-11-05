@@ -1,0 +1,23 @@
+id: son_accident_ta
+label: scam
+template: son_accident
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Avinash
+  victim: Vasudha
+s5_turn: 4
+turns:
+- speaker: caller
+  text: நான் காவல் நிலையத்திலிருந்து பேசுகிறேன். உங்கள் மகனுக்கு விபத்து, அவனை கைது செய்துள்ளோம்.
+- speaker: victim
+  text: கடவுளே! அவன் நலமா?
+- speaker: caller
+  text: அவன் நலம், ஆனால் இதை யாரிடமும் சொல்லாதீர்கள், இல்லையென்றால் வழக்கு பெரிதாகும்.
+- speaker: victim
+  text: அவனிடம் பேச விடுங்கள்.
+- speaker: caller
+  text: இப்போது முடியாது. ஜாமீனுக்கு உடனே பணம் அனுப்புங்கள், யுபிஐ மூலம்.
+- speaker: victim
+  text: எவ்வளவு?

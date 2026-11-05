@@ -1,0 +1,25 @@
+id: ed_virtual_court_en
+label: scam
+template: ed_virtual_court
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Vasudha
+s5_turn: 5
+turns:
+- speaker: caller
+  text: I am an officer from the Enforcement Directorate. Your name has come up in a hawala case.
+- speaker: victim
+  text: My name? How?
+- speaker: caller
+  text: The judge will hear your case in an online court now. Stay alone in your room and do not tell anyone.
+- speaker: victim
+  text: All right.
+- speaker: caller
+  text: The judge has ordered that all your savings be held in a government account until the inquiry ends.
+- speaker: caller
+  text: Transfer the money by RTGS today itself, this is your last chance.
+- speaker: victim
+  text: I don't have that much money.

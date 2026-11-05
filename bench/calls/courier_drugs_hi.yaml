@@ -1,0 +1,23 @@
+id: courier_drugs_hi
+label: scam
+template: courier_drugs
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Kalpana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: मैं फेडेक्स कूरियर से बोल रहा हूँ। आपका एक पार्सल कस्टम्स ने रोका है।
+- speaker: victim
+  text: मैंने तो कोई पार्सल नहीं भेजा।
+- speaker: caller
+  text: उसमें ड्रग्स और नकली पासपोर्ट मिले हैं। मामला नारकोटिक्स विभाग को गया है, आप पर केस दर्ज होगा।
+- speaker: victim
+  text: अब मैं क्या करूँ?
+- speaker: caller
+  text: अभी के अभी वेरिफिकेशन अमाउंट भेजिए और एनीडेस्क ऐप डाउनलोड कीजिए, नहीं तो पुलिस घर आएगी।
+- speaker: victim
+  text: रुकिए, मैं सोचती हूँ।

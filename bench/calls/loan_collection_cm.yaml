@@ -1,0 +1,19 @@
+id: loan_collection_cm
+label: benign
+template: loan_collection
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Lakshmi
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं finance company से बोल रहा हूँ। आपकी गाड़ी की EMI पंद्रह दिन से बाकी है।
+- speaker: victim
+  text: हाँ, इस महीने थोड़ी दिक्कत थी।
+- speaker: caller
+  text: कोई बात नहीं। हमारे app से या branch में जाकर payment कर दीजिए, late fee लगेगी।
+- speaker: victim
+  text: ठीक है, अगले हफ़्ते कर दूँगी।

@@ -1,0 +1,19 @@
+id: police_awareness_hi
+label: benign
+template: police_awareness
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Tarika
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, यह साइबर सेल की जागरूकता कॉल है।
+- speaker: caller
+  text: याद रखिए, पुलिस या सीबीआई कभी फ़ोन पर गिरफ्तार नहीं करती।
+- speaker: caller
+  text: कोई ओटीपी माँगे तो मत दीजिए, और पैसे कभी ट्रांसफर मत कीजिए। शक हो तो एक नौ तीन शून्य पर कॉल कीजिए।
+- speaker: victim
+  text: जी, धन्यवाद। मैं ध्यान रखूँगी।

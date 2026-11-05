@@ -1,0 +1,19 @@
+id: loan_collection_en
+label: benign
+template: loan_collection
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Chetana
+s5_turn: null
+turns:
+- speaker: caller
+  text: Hello, I am calling from the finance company. Your vehicle loan instalment is fifteen days overdue.
+- speaker: victim
+  text: Yes, this month was a bit difficult.
+- speaker: caller
+  text: No problem. Please pay through our app or at the branch. A late fee will apply.
+- speaker: victim
+  text: Okay, I will pay next week.

@@ -1,0 +1,19 @@
+id: passport_police_verification_ta
+label: benign
+template: passport_police_verification
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Harshad
+  victim: Chetana
+s5_turn: null
+turns:
+- speaker: caller
+  text: வணக்கம், உங்கள் பாஸ்போர்ட் போலீஸ் சரிபார்ப்புக்காக காவல் நிலையத்திலிருந்து பேசுகிறேன்.
+- speaker: victim
+  text: சரி, எப்போது வர வேண்டும்?
+- speaker: caller
+  text: நாளை காலை பதினொரு மணிக்கு முகவரி சான்றும் புகைப்படமும் கொண்டு வாருங்கள்.
+- speaker: victim
+  text: சரி, வருகிறேன். நன்றி.

@@ -1,0 +1,19 @@
+id: police_awareness_ta
+label: benign
+template: police_awareness
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Prakash
+  victim: Tarika
+s5_turn: null
+turns:
+- speaker: caller
+  text: வணக்கம், இது சைபர் கிரைம் விழிப்புணர்வு அழைப்பு.
+- speaker: caller
+  text: நினைவில் வையுங்கள், போலீஸ் அல்லது சிபிஐ ஒருபோதும் போனில் கைது செய்வதில்லை.
+- speaker: caller
+  text: யாராவது ஓடிபி கேட்டால் கொடுக்க வேண்டாம், பணத்தை ஒருபோதும் டிரான்ஸ்பர் செய்ய வேண்டாம்.
+- speaker: victim
+  text: நன்றி, கவனமாக இருப்பேன்.

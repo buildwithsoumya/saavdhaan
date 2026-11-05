@@ -1,0 +1,19 @@
+id: courier_delivery_hi
+label: benign
+template: courier_delivery
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Kalpana
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं डिलीवरी वाला बोल रहा हूँ, आपका सामान लेकर गेट पर खड़ा हूँ।
+- speaker: victim
+  text: अच्छा, मेरी दवाइयाँ होंगी।
+- speaker: caller
+  text: जी, डिलीवरी के लिए मैसेज में आया कोड बता दीजिए।
+- speaker: victim
+  text: रुकिए, मैं नीचे आ रही हूँ।

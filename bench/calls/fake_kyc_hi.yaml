@@ -1,0 +1,23 @@
+id: fake_kyc_hi
+label: scam
+template: fake_kyc
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Chetana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: नमस्कार, मैं आरबीआई की केवाईसी टीम से बोल रहा हूँ।
+- speaker: victim
+  text: हाँ जी, बोलिए।
+- speaker: caller
+  text: आपकी केवाईसी अधूरी है, आज रात आपका खाता बंद हो जाएगा।
+- speaker: victim
+  text: अरे, उसमें तो मेरी पेंशन आती है।
+- speaker: caller
+  text: तुरंत अपना ओटीपी और खाता नंबर बताइए, आज ही अपडेट कर देंगे।
+- speaker: victim
+  text: एक मिनट, मैं चश्मा लाती हूँ।

@@ -1,0 +1,21 @@
+id: bank_fraud_desk_bn
+label: benign
+template: bank_fraud_desk
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Yashraj
+  victim: Chetana
+s5_turn: null
+turns:
+- speaker: caller
+  text: নমস্কার, আমি আপনার ব্যাংকের প্রতারণা প্রতিরোধ বিভাগ থেকে বলছি।
+- speaker: caller
+  text: আপনার কার্ডে একটা সন্দেহজনক লেনদেন আটকানো হয়েছে। মনে রাখবেন, ব্যাংক কখনও ওটিপি চায় না।
+- speaker: victim
+  text: আচ্ছা, ওটা আমি করিনি।
+- speaker: caller
+  text: ঠিক আছে, কার্ড বন্ধ করে দিয়েছি। আপনার ওটিপি বা সিভিভি কাউকে দেবেন না, আমাদেরও না।
+- speaker: caller
+  text: নতুন কার্ড শাখা থেকে নিয়ে নেবেন। ধন্যবাদ।

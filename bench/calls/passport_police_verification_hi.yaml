@@ -1,0 +1,19 @@
+id: passport_police_verification_hi
+label: benign
+template: passport_police_verification
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Chetana
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं थाने से बोल रहा हूँ, आपके पासपोर्ट के पुलिस वेरिफिकेशन के लिए।
+- speaker: victim
+  text: जी, बताइए कब आना है?
+- speaker: caller
+  text: कल सुबह ग्यारह बजे थाने आ जाइए, पते का प्रमाण और फ़ोटो साथ लाइए।
+- speaker: victim
+  text: ठीक है, आ जाऊँगी। धन्यवाद।

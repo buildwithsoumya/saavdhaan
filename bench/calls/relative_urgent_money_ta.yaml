@@ -1,0 +1,19 @@
+id: relative_urgent_money_ta
+label: benign
+template: relative_urgent_money
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Avinash
+  victim: Vasudha
+s5_turn: null
+turns:
+- speaker: caller
+  text: பாட்டி, நான் அங்கித். கல்லூரி கட்டணம் இன்றே கட்ட வேண்டும்.
+- speaker: victim
+  text: அடேய், அப்பாவிடம் ஏன் கேட்கவில்லை?
+- speaker: caller
+  text: அப்பா கூட்டத்தில் இருக்கிறார். யுபிஐ மூலம் அனுப்புங்கள், மாலை அப்பா திருப்பித் தருவார்.
+- speaker: victim
+  text: சரி, முதலில் உன் அப்பாவிடம் பேசுகிறேன்.

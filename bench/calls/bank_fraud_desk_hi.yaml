@@ -1,0 +1,21 @@
+id: bank_fraud_desk_hi
+label: benign
+template: bank_fraud_desk
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Lakshmi
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं आपके बैंक के फ्रॉड प्रिवेंशन डेस्क से बोल रही हूँ।
+- speaker: caller
+  text: आपके कार्ड से एक संदिग्ध लेनदेन रोका गया है। कृपया याद रखें, बैंक कभी ओटीपी नहीं माँगता।
+- speaker: victim
+  text: अच्छा, वो मैंने नहीं किया था।
+- speaker: caller
+  text: ठीक है, हमने कार्ड बंद कर दिया है। अपना ओटीपी या सीवीवी किसी को मत बताइए, हमें भी नहीं।
+- speaker: caller
+  text: नया कार्ड शाखा से ले लीजिए। धन्यवाद।

@@ -1,0 +1,19 @@
+id: courier_delivery_ta
+label: benign
+template: courier_delivery
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Yashraj
+  victim: Kalpana
+s5_turn: null
+turns:
+- speaker: caller
+  text: வணக்கம், நான் டெலிவரி செய்பவர், உங்கள் பொருளுடன் வாசலில் நிற்கிறேன்.
+- speaker: victim
+  text: சரி, என் மருந்துகளாக இருக்கும்.
+- speaker: caller
+  text: ஆமாம், டெலிவரிக்கு மெசேஜில் வந்த குறியீட்டைச் சொல்லுங்கள்.
+- speaker: victim
+  text: இருங்கள், கீழே வருகிறேன்.

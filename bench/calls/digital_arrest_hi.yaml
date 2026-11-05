@@ -1,0 +1,27 @@
+id: digital_arrest_hi
+label: scam
+template: digital_arrest
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Lakshmi
+s5_turn: 6
+turns:
+- speaker: caller
+  text: नमस्ते, मैं मुंबई क्राइम ब्रांच से इंस्पेक्टर विनोद बोल रहा हूँ।
+- speaker: victim
+  text: जी, क्या बात है?
+- speaker: caller
+  text: आपके आधार नंबर से एक बैंक खाता खुला है जिसमें मनी लॉन्ड्रिंग हुई है। आपके नाम पर गिरफ्तारी वारंट निकला है।
+- speaker: victim
+  text: क्या? मैंने तो कुछ नहीं किया।
+- speaker: caller
+  text: यह गोपनीय जाँच है। किसी को मत बताना और वीडियो कॉल पर बने रहिए, फ़ोन मत काटना।
+- speaker: victim
+  text: ठीक है साहब, बताइए क्या करना है।
+- speaker: caller
+  text: जाँच के लिए अपने सारे पैसे तुरंत आरबीआई के सेफ अकाउंट में ट्रांसफर कीजिए, दो घंटे में, वरना गिरफ्तारी होगी।
+- speaker: victim
+  text: लेकिन मुझे अपने बेटे से पूछना होगा।

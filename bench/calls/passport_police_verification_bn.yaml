@@ -1,0 +1,19 @@
+id: passport_police_verification_bn
+label: benign
+template: passport_police_verification
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Avinash
+  victim: Riyaa
+s5_turn: null
+turns:
+- speaker: caller
+  text: নমস্কার, আপনার পাসপোর্টের পুলিশ যাচাইয়ের জন্য থানা থেকে বলছি।
+- speaker: victim
+  text: হ্যাঁ, কবে আসতে হবে?
+- speaker: caller
+  text: কাল সকাল এগারোটায় ঠিকানার প্রমাণ আর ছবি নিয়ে থানায় আসুন।
+- speaker: victim
+  text: ঠিক আছে, আসব। ধন্যবাদ।

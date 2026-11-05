@@ -1,0 +1,19 @@
+id: loan_collection_bn
+label: benign
+template: loan_collection
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Prakash
+  victim: Lakshmi
+s5_turn: null
+turns:
+- speaker: caller
+  text: নমস্কার, আমি ফিনান্স কোম্পানি থেকে বলছি। আপনার গাড়ির কিস্তি পনেরো দিন বাকি।
+- speaker: victim
+  text: হ্যাঁ, এই মাসে একটু অসুবিধা ছিল।
+- speaker: caller
+  text: অসুবিধা নেই। আমাদের অ্যাপ থেকে বা শাখায় গিয়ে পেমেন্ট করুন, লেট ফি লাগবে।
+- speaker: victim
+  text: ঠিক আছে, সামনের সপ্তাহে দিয়ে দেব।

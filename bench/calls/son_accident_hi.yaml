@@ -1,0 +1,23 @@
+id: son_accident_hi
+label: scam
+template: son_accident
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Devansh
+  victim: Vasudha
+s5_turn: 4
+turns:
+- speaker: caller
+  text: मैं थाने से हवलदार बोल रहा हूँ। आपके बेटे का एक्सीडेंट हुआ है, उसे गिरफ्तार किया गया है।
+- speaker: victim
+  text: हे भगवान! वो ठीक तो है?
+- speaker: caller
+  text: वो ठीक है, लेकिन यह बात घर वालों को मत बताना, वरना केस बड़ा हो जाएगा।
+- speaker: victim
+  text: मुझे उससे बात करवाइए।
+- speaker: caller
+  text: अभी नहीं। जमानत के लिए तुरंत पैसे भेजिए, यूपीआई से, फ़ौरन।
+- speaker: victim
+  text: कितने पैसे?

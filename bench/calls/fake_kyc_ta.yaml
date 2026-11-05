@@ -1,0 +1,23 @@
+id: fake_kyc_ta
+label: scam
+template: fake_kyc
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Harshad
+  victim: Chetana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: வணக்கம், நான் ஆர்பிஐ கேஒய்சி குழுவிலிருந்து பேசுகிறேன்.
+- speaker: victim
+  text: ஆமாம், சொல்லுங்கள்.
+- speaker: caller
+  text: உங்கள் கேஒய்சி முழுமையடையவில்லை, இன்றிரவு உங்கள் கணக்கு முடக்கப்படும்.
+- speaker: victim
+  text: ஐயோ, அதில்தான் என் ஓய்வூதியம் வருகிறது.
+- speaker: caller
+  text: உடனே உங்கள் ஓடிபி மற்றும் கணக்கு எண்ணைச் சொல்லுங்கள், இன்றே புதுப்பிக்கிறோம்.
+- speaker: victim
+  text: ஒரு நிமிடம், கண்ணாடி எடுத்து வருகிறேன்.

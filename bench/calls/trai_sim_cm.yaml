@@ -1,0 +1,23 @@
+id: trai_sim_cm
+label: scam
+template: trai_sim
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Lakshmi
+s5_turn: 4
+turns:
+- speaker: caller
+  text: यह TRAI की तरफ़ से call है। आपका number दो घंटे में block कर दिया जाएगा।
+- speaker: victim
+  text: क्यों block होगा?
+- speaker: caller
+  text: आपके नाम की SIM से illegal messages भेजे गए हैं, cyber cell में FIR दर्ज है।
+- speaker: victim
+  text: मैं तो बस अपने बच्चों से बात करती हूँ।
+- speaker: caller
+  text: मामला बंद करने के लिए अपनी bank details और Aadhaar number बताइए।
+- speaker: victim
+  text: मुझे समझ नहीं आ रहा।

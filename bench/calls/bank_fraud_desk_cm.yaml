@@ -1,0 +1,21 @@
+id: bank_fraud_desk_cm
+label: benign
+template: bank_fraud_desk
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Chetana
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं आपके bank के fraud prevention desk से बोल रही हूँ।
+- speaker: caller
+  text: आपके card से एक suspicious transaction रोका गया है। याद रखें, bank कभी OTP नहीं माँगता।
+- speaker: victim
+  text: अच्छा, वो मैंने नहीं किया था।
+- speaker: caller
+  text: ठीक है, हमने card बंद कर दिया है। अपना OTP या CVV किसी को मत बताइए, हमें भी नहीं।
+- speaker: caller
+  text: नया card branch से ले लीजिए। धन्यवाद।

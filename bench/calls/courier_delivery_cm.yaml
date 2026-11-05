@@ -1,0 +1,19 @@
+id: courier_delivery_cm
+label: benign
+template: courier_delivery
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Vasudha
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं delivery वाला बोल रहा हूँ, आपका सामान लेकर gate पर खड़ा हूँ।
+- speaker: victim
+  text: अच्छा, मेरी दवाइयाँ होंगी।
+- speaker: caller
+  text: जी, delivery के लिए message में आया OTP बता दीजिए।
+- speaker: victim
+  text: रुकिए, मैं नीचे आ रही हूँ।
