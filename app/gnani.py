@@ -5,6 +5,7 @@ Realtime STT (Prisma), TTS (Timbre, REST and SSE), voice cloning and batch STT.
 import asyncio
 import base64
 import json
+import logging
 import time
 
 import httpx
@@ -17,9 +18,12 @@ API_URL = "https://api.vachana.ai"
 FRAME_BYTES = 1024  # 512 samples of 16-bit mono PCM, required by the realtime API
 ROTATE_AFTER_S = 14 * 60  # sessions are capped at 15 minutes; reconnect before that
 PREVIOUS_TEXT_CHARS = 600  # the server keeps only the last 600 characters
+RECONNECT_BUFFER_BYTES = 32000 * 3  # audio kept (3 s at 16 kHz) while waiting to reconnect
+BATCH_TIMEOUT_S = 900
 TERMINAL = {"COMPLETED", "PARTIAL_FAILURE", "FAILED", "START_FAILED", "CANCELLED"}
 
 transport: httpx.AsyncBaseTransport | None = None  # tests swap in httpx.MockTransport
+log = logging.getLogger("saavdhaan.gnani")
 
 
 class GnaniError(Exception):
@@ -83,8 +87,12 @@ class SttStream:
         self._ws = None
         self._opened_at = 0.0
         self._dead = False
+        self._retry_at = 0.0  # no reconnect before this time (backoff after short-lived sessions)
+        self._backoff = 0.5  # doubled on each short-lived session: 1 s, 2 s, 4 s ... 30 s
         self._buf = b""
         self._tasks = set()
+        self._old = set()  # rotated-out sessions still flushing
+        self._transcript = asyncio.Event()
 
     async def start(self):
         await self._open()
@@ -113,34 +121,55 @@ class SttStream:
             async for raw in ws:
                 if isinstance(raw, bytes):
                     continue
-                msg = json.loads(raw)
-                if msg.get("type") == "transcript" and msg.get("text"):
-                    self.history = (self.history + " " + msg["text"]).strip()[-2000:]
-                await self.on_event(msg)
+                try:
+                    msg = json.loads(raw)
+                    if msg.get("type") == "transcript" and msg.get("text"):
+                        self.history = (self.history + " " + msg["text"]).strip()[-2000:]
+                        self._transcript.set()
+                    await self.on_event(msg)
+                except Exception:  # a bad frame or a caller bug must not end the session
+                    log.exception("STT event handling failed")
         except websockets.ConnectionClosed:
             pass
         finally:
             if ws is self._ws:
-                self._dead = True  # next send_audio reconnects
+                self._dead = True  # next send_audio reconnects, after a backoff
+                lived = self._clock() - self._opened_at
+                self._backoff = 1.0 if lived > 30 else min(self._backoff * 2, 30.0)
+                self._retry_at = self._clock() + self._backoff
+
+    async def _flush(self, ws, wait_s=1.5):
+        """Commit the open utterance on `ws` and wait briefly for its transcript."""
+        self._transcript.clear()
+        try:
+            await ws.send(json.dumps({"type": "commit"}))
+            await asyncio.wait_for(self._transcript.wait(), wait_s)
+        except (websockets.ConnectionClosed, asyncio.TimeoutError):
+            pass
 
     async def rotate(self):
-        """Swap to a new session; the old one is flushed and closed in the background."""
+        """Swap to a new session. The old one is flushed first so its last
+        utterance lands in `previous_text`, then closed in the background."""
         old = self._ws
         if not self._dead:
-            try:
-                await old.send(json.dumps({"type": "commit"}))
-            except websockets.ConnectionClosed:
-                pass
+            await self._flush(old)
         await self._open()
+        self._old.add(old)
         self._spawn(self._close_later(old))
 
-    async def _close_later(self, ws, grace_s=3.0):
-        await asyncio.sleep(grace_s)  # let the committed utterance come back
+    async def _close_later(self, ws, grace_s=2.0):
+        await asyncio.sleep(grace_s)  # late transcripts from the old session still arrive
         await ws.close()
+        self._old.discard(ws)
 
     async def send_audio(self, pcm: bytes):
         self._buf += pcm
-        if self._dead or self._clock() - self._opened_at >= ROTATE_AFTER_S:
+        if self._dead:
+            if self._clock() < self._retry_at:
+                self._buf = self._buf[-RECONNECT_BUFFER_BYTES:]  # keep the latest audio only
+                return
+            await self.rotate()
+        elif self._clock() - self._opened_at >= ROTATE_AFTER_S:
             await self.rotate()
         while len(self._buf) >= FRAME_BYTES:
             frame, self._buf = self._buf[:FRAME_BYTES], self._buf[FRAME_BYTES:]
@@ -152,21 +181,30 @@ class SttStream:
                 return
 
     async def commit(self):
-        await self._ws.send(json.dumps({"type": "commit"}))
+        try:
+            await self._ws.send(json.dumps({"type": "commit"}))
+        except websockets.ConnectionClosed:
+            self._dead = True
 
     async def update_keyterms(self, terms):
         """Change keyterms mid-session (applies from the next segment) and keep them for reconnects."""
         self.keyterms = list(terms)[:200]
         bias = self.keyterms if self.model == "prisma-v3.0" else [t for t in self.keyterms if t.isalpha()][:100]
-        await self._ws.send(json.dumps({"type": "update_settings", "bias": {"list": bias}}))
+        try:
+            await self._ws.send(json.dumps({"type": "update_settings", "bias": {"list": bias}}))
+        except websockets.ConnectionClosed:
+            self._dead = True  # the next session starts with the new keyterms anyway
 
-    async def close(self):
+    async def close(self, wait_s=2.0):
+        """End of call: flush the last utterance, then close every session."""
         if self._ws is not None and not self._dead:
-            try:
-                await self.commit()
-            except websockets.ConnectionClosed:
-                pass
-            await self._ws.close()
+            await self._flush(self._ws, wait_s)
+        for ws in [self._ws, *self._old]:
+            if ws is not None:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
         for t in list(self._tasks):
             t.cancel()
 
@@ -177,10 +215,14 @@ def _client(timeout=60.0) -> httpx.AsyncClient:
 
 
 async def _request(client, method, url, **kw) -> httpx.Response:
-    """One request, retrying 429s (accounts may allow one active request at a time)."""
+    """One request, retrying 429s (accounts may allow one active request at a time).
+    Network failures surface as GnaniError so callers have one error to handle."""
     for attempt in range(6):
-        r = await client.request(method, url, **kw)
-        if r.status_code != 429:
+        try:
+            r = await client.request(method, url, **kw)
+        except httpx.HTTPError as e:
+            raise GnaniError(f"{method} {url} failed: {e!r}") from e
+        if r.status_code != 429 or attempt == 5:
             break
         await asyncio.sleep(min(2 ** attempt, 20))
     if r.status_code >= 400:
@@ -205,19 +247,28 @@ async def tts_sse(text, *, voice, language, model="timbre-v3.0", sample_rate=160
     """Streaming Timbre TTS: yields raw 16-bit PCM chunks as they are synthesized."""
     body = {"text": text, "voice": voice, "model": model, "language": language,
             "audio_config": _audio_config(sample_rate, container="raw")}
-    async with _client() as c, c.stream("POST", "/api/v1/tts/sse", json=body) as r:
-        if r.status_code >= 400:
-            raise GnaniError(f"tts sse -> {r.status_code}: {(await r.aread())[:300]!r}")
-        event = ""
-        async for line in r.aiter_lines():
-            if line.startswith("event:"):
-                event = line[6:].strip()
-            elif line.startswith("data:"):
-                data = json.loads(line[5:])
-                if event == "error":
-                    raise GnaniError(f"tts sse error: {data}")
-                if data.get("audio"):
-                    yield base64.b64decode(data["audio"])
+    async with _client() as c:
+        for attempt in range(6):  # 429 means another request is still running; wait and retry
+            try:
+                async with c.stream("POST", "/api/v1/tts/sse", json=body) as r:
+                    if r.status_code == 429 and attempt < 5:
+                        await asyncio.sleep(min(2 ** attempt, 20))
+                        continue
+                    if r.status_code >= 400:
+                        raise GnaniError(f"tts sse -> {r.status_code}: {(await r.aread())[:300]!r}")
+                    event = ""
+                    async for line in r.aiter_lines():
+                        if line.startswith("event:"):
+                            event = line[6:].strip()
+                        elif line.startswith("data:"):
+                            data = json.loads(line[5:])
+                            if event == "error":
+                                raise GnaniError(f"tts sse error: {data}")
+                            if data.get("audio"):
+                                yield base64.b64decode(data["audio"])
+                    return
+            except httpx.HTTPError as e:
+                raise GnaniError(f"tts sse failed: {e!r}") from e
 
 
 async def clone_embedding(audio: bytes, filename="reference.wav") -> dict:
@@ -245,14 +296,17 @@ async def batch_transcribe(audio: bytes, filename="call.wav", *, num_speakers=2,
         # config is a JSON form part (curl: -F 'config=...;type=application/json')
         r = await _request(c, "POST", "/stt/v3/batch/jobs", files=[
             ("config", (None, json.dumps(config), "application/json")),
-            ("files", (filename, audio, "audio/wav")),
+            ("files", (filename, audio)),  # format comes from the extension; direct upload max 10 MB
         ])
         job = r.json()["job_id"]
         await _request(c, "POST", f"/stt/v3/batch/jobs/{job}/start")
+        deadline = time.monotonic() + BATCH_TIMEOUT_S
         while True:
-            status = (await _request(c, "GET", f"/stt/v3/batch/jobs/{job}")).json()["status"]
+            status = (await _request(c, "GET", f"/stt/v3/batch/jobs/{job}")).json().get("status")
             if status in TERMINAL:
                 break
+            if time.monotonic() > deadline:
+                raise GnaniError(f"batch job {job} still {status} after {BATCH_TIMEOUT_S} s")
             await asyncio.sleep(poll_s)  # docs: poll no faster than every 10 s
         if status not in ("COMPLETED", "PARTIAL_FAILURE"):
             raise GnaniError(f"batch job {job} ended {status}")
@@ -261,6 +315,9 @@ async def batch_transcribe(audio: bytes, filename="call.wav", *, num_speakers=2,
         if not files:
             raise GnaniError(f"batch job {job} has no completed files")
         async with httpx.AsyncClient(timeout=60.0, transport=transport) as plain:  # presigned URL, no API key
-            doc = await plain.get(files[0]["transcript_url"])
-            doc.raise_for_status()
-            return doc.json()
+            try:
+                doc = await plain.get(files[0]["transcript_url"])
+                doc.raise_for_status()
+                return doc.json()
+            except (httpx.HTTPError, ValueError) as e:
+                raise GnaniError(f"batch job {job}: transcript download failed: {e!r}") from e
