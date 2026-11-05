@@ -123,3 +123,32 @@ def test_every_non_hindi_native_list_is_flagged_for_review():
     for code, block in langs.items():
         if code not in ("hi", "en"):
             assert block.get("needs_native_review") is True, code
+
+
+def test_short_hindi_entries_do_not_match_inside_other_words():
+    assert stages("आपका कस्टमर केयर नंबर बदल गया है, ट्राई करो") == set()
+    assert stages("ट्राई की तरफ़ से कॉल है, जज साहब सुनवाई करेंगे") == {"S1"}
+
+
+def test_reassurance_does_not_hide_a_money_ask():
+    assert "S5" in stages("don't worry, bas OTP bata do")
+    assert "S5" in stages("Do not worry, share the OTP now")
+    assert "S5" in stages("घबराइए मत, अभी OTP बताइए")
+    assert "S5" not in stages("I will transfer the call to the police desk")
+
+
+def test_curly_apostrophes_and_latin_glued_to_indic():
+    assert "S5" not in stages("Please don’t share your OTP with anyone")
+    assert "S3" in stages("Don’t tell anyone about this call")
+    assert "S5" in stages("अपना OTPबताओ")
+
+
+def test_window_boundary_and_duplicate_hits():
+    tr = Tracker(window_s=600)
+    tr.feed("CBI officer", t=0)
+    tr.feed("arrest warrant", t=10)
+    assert tr.level(600) == 1  # S1 at exactly 600 s is still inside the window
+    assert tr.level(601) == 0
+    for t in (20, 30, 40):
+        tr.feed("CBI CBI", t=t)
+    assert [h["phrase"] for h in tr.explain(40)["stages"]["S1"]] == ["cbi"]
