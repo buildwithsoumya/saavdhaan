@@ -152,10 +152,12 @@ def test_rotates_before_15_minute_cap_carrying_context(monkeypatch):
 
 def test_reconnects_after_server_closes_session():
     async def run():
-        stream, sockets, _, _ = make_stream()
+        stream, sockets, _, clock = make_stream()
         await stream.start()
+        clock.t = 60  # the session ran for a minute
         await sockets[0].close()  # e.g. code 1001 after the session cap
         await settle()
+        clock.t += 1.1  # reconnects after a short pause
         await stream.send_audio(b"\0" * 2048)
         assert len(sockets) == 2 and len(sockets[1].frames()) == 2
     asyncio.run(run())
