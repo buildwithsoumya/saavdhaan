@@ -24,7 +24,20 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 
-let ws = null, ctx = null, mic = null, node = null;
+// access token: opened once as /?t=<token>, then remembered on this device
+(() => {
+  const url = new URL(location.href);
+  const t = url.searchParams.get("t");
+  if (t) {
+    store.set("token", t);
+    url.searchParams.delete("t");
+    history.replaceState(null, "", url);
+  }
+})();
+const withToken = (path) => `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(store.get("token", ""))}`;
+const api = (path, opts) => fetch(withToken(path), opts);
+
+let ws = null, ctx = null, mic = null, node = null, wakeLock = null;
 let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null;
 
@@ -32,7 +45,7 @@ let muted = false, lastSpeechEnd = null;
 async function loadVoices() {
   let family = [];
   try {
-    const r = await fetch("/api/voices");
+    const r = await api("/api/voices");
     if (r.ok) family = await r.json();
   } catch {}
   const voice = $("voice");
@@ -83,7 +96,7 @@ async function saveVoice() {
   $("enrol-save").disabled = true;
   $("enrol-status").textContent = "आवाज़ बना रहे हैं… · Creating voice…";
   try {
-    const r = await fetch("/api/voices", { method: "POST", body: form });
+    const r = await api("/api/voices", { method: "POST", body: form });
     const body = await r.json();
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
@@ -107,7 +120,7 @@ function initSettings() {
   $("voices").onclick = async (e) => {
     const id = e.target.dataset.del;
     if (!id) return;
-    await fetch(`/api/voices/${id}`, { method: "DELETE" });
+    await api(`/api/voices/${id}`, { method: "DELETE" });
     if (store.get("voice", "") === `family:${id}`) store.set("voice", "Shivani");
     loadVoices();
   };
@@ -202,6 +215,15 @@ class Pcm16k extends AudioWorkletProcessor {
 }
 registerProcessor("pcm16k", Pcm16k);`;
 
+// A phone that turns its screen off stops the mic; keep it awake while listening.
+async function keepAwake(on) {
+  try {
+    if (on && "wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    else { await wakeLock?.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => listening && document.visibilityState === "visible" && keepAwake(true));
+
 async function startAudio() {
   mic = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
@@ -215,9 +237,11 @@ async function startAudio() {
     ws.send(muted ? new ArrayBuffer(1024) : e.data);
   };
   ctx.createMediaStreamSource(mic).connect(node);
+  keepAwake(true);
 }
 
 function stopAudio() {
+  keepAwake(false);
   mic?.getTracks().forEach((t) => t.stop());
   ctx?.close();
   mic = ctx = node = null;
@@ -225,7 +249,8 @@ function stopAudio() {
 
 // ---- socket ---------------------------------------------------------------
 function connect() {
-  const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0") });
+  const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
+    token: store.get("token", "") });
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
   ws.binaryType = "arraybuffer";
   conn("जुड़ रहा है… · Connecting…");
@@ -241,7 +266,11 @@ function connect() {
       renderLevel(m.explain.level);
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
+    if (e.code === 4401) {
+      conn("ऐप का लिंक गलत है · Wrong app link: open the link with ?t= once");
+      return toggle();
+    }
     if (!listening) return;
     retry = Math.min(retry + 1, 5);
     conn("दोबारा जुड़ रहा है… · Reconnecting…");
@@ -283,10 +312,10 @@ async function makeReport() {
   btn.disabled = true;
   btn.textContent = "रिपोर्ट बन रही है (1–2 मिनट)… · Making report…";
   try {
-    const r = await fetch(`/api/report/${callId}`, { method: "POST" });
+    const r = await api(`/api/report/${callId}`, { method: "POST" });
     const body = await r.json();
     if (!r.ok) throw new Error(body.detail || r.statusText);
-    $("report-link").href = body.url;
+    $("report-link").href = withToken(body.url);
     $("report-link").hidden = false;
     btn.textContent = "रिपोर्ट तैयार · Report ready";
   } catch (err) {
@@ -298,6 +327,7 @@ async function makeReport() {
 
 initSettings();
 $("report").onclick = makeReport;
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 renderStages(null);
 renderLevel(0);
 $("listen").onclick = toggle;
