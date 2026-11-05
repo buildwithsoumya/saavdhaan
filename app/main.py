@@ -10,9 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, enrol, gnani
+from app import alerts, enrol, gnani, report
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -133,6 +134,32 @@ def delete_voice(voice_id: str):
     if not enrol.delete(voice_id):
         raise HTTPException(404, "no such voice")
     return {"deleted": voice_id}
+
+
+def _call_file(folder: str, call_id: str, ext: str) -> Path:
+    if not call_id.replace("-", "").isalnum():
+        raise HTTPException(400, "bad call id")
+    return Path(settings.data_dir) / folder / f"{call_id}.{ext}"
+
+
+@app.post("/api/report/{call_id}")
+async def make_report(call_id: str):
+    wav = _call_file("calls", call_id, "wav")
+    if not wav.exists():
+        raise HTTPException(404, "this call was not recorded (recording is opt-in)")
+    try:
+        await report.build(wav)
+    except gnani.GnaniError as e:
+        raise HTTPException(502, f"transcription failed: {e}")
+    return {"url": f"/reports/{call_id}"}
+
+
+@app.get("/reports/{call_id}")
+def get_report(call_id: str):
+    path = _call_file("reports", call_id, "html")
+    if not path.exists():
+        raise HTTPException(404, "no report yet")
+    return FileResponse(path)
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
