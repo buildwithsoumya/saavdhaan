@@ -1,0 +1,13 @@
+# Prisma v3.0 keyterms (max 200). `base` is sent when a call starts.
+# Once the call shows authority + fear (S1 + S2), the list is swapped for
+# `extraction` mid-session, so recognition focuses on how the money leaves.
+base: [CBI, TRAI, FedEx, customs, ED, RBI, Enforcement Directorate, cyber cell, cyber crime,
+       crime branch, narcotics, NCB, Interpol, police, inspector, DCP, judge, court,
+       digital arrest, arrest warrant, warrant, FIR, money laundering, drugs, seized, hawala,
+       Aadhaar, parcel, video call, Skype, confidential,
+       गिरफ्तार, वारंट, पुलिस, सीबीआई, मनी लॉन्ड्रिंग, जब्त, गोपनीय]
+extraction: [OTP, UPI, UPI PIN, AnyDesk, TeamViewer, QuickSupport, screen share, safe account,
+             secure account, RBI account, verification amount, verification fee, transfer,
+             RTGS, NEFT, IMPS, Aadhaar number, account number, card number, CVV, ATM PIN,
+             gift card, KYC, QR code, ओटीपी, यूपीआई, ट्रांसफर, खाता नंबर, आधार नंबर, सेफ अकाउंट,
+             police, CBI, arrest]

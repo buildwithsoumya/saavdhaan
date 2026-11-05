@@ -1,0 +1,115 @@
+# Scam kill-chain lexicon.
+#   S1 authority, S2 fear, S3 isolation, S4 urgency, S5 extraction
+# Every list is matched against every transcript, whatever language was detected
+# (Hindi and Marathi share Devanagari and are often tagged as each other).
+# Latin entries match whole words, case-insensitive. Native-script entries match
+# as substrings because Indic words take suffixes.
+# Negations only guard S5: "never share your OTP" must not count as extraction.
+# Negations are single words matched as whole tokens; a leading ~ means a suffix
+# (Dravidian negative imperatives: ಹೇಳಬೇಡಿ, చెప్పకండి, சொல்லாதீர்கள்).
+# clause_breaks end a clause, so "OTP batao warna arrest nahi rukega" keeps its S5.
+
+shared:  # Latin loanwords; Prisma `format=codemix` keeps these in Latin in every language
+  S1: [cbi, police, trai, customs, fedex, enforcement directorate, rbi, reserve bank,
+       cyber cell, cyber crime, crime branch, narcotics, ncb, income tax department,
+       judge, court, inspector, ips officer, dcp, interpol, mumbai police, delhi police]
+  S2: [arrest, arrested, digital arrest, warrant, arrest warrant, criminal case, case registered,
+       case file, case darj, case hai, fir, money laundering, drugs, seized, illegal items, jail,
+       hawala, terror funding, legal action, accident, account blocked, account will be blocked,
+       sim will be blocked, number will be blocked, suspended, deactivated]
+  S3: [don't tell anyone, do not tell anyone, dont tell anyone, don't tell your family,
+       don't cut the call, do not cut the call, don't disconnect, do not disconnect,
+       stay on video call, stay on the call, keep your camera on, skype, confidential matter,
+       kisi ko mat batana, kisi ko mat bataiye, kisi ko nahi batana, phone mat kaatna,
+       call mat kaatna, family ko mat batana, ghar walon ko mat batana]
+  S4: [right now, immediately, within 2 hours, within two hours, within 24 hours, today itself,
+       otherwise, urgent, urgently, last chance, turant, abhi ke abhi, aaj hi, warna, jaldi karo]
+  S5: [transfer, safe account, secure account, rbi account, verification amount, verification fee,
+       verification charge, otp, upi, upi pin, anydesk, any desk, teamviewer, team viewer,
+       quicksupport, screen share, aadhaar number, aadhar number, bank details, account number,
+       card number, cvv, atm pin, send money, rtgs, neft, imps, gift card, kyc link, paise bhejo,
+       paisa bhejo, paise transfer]
+  negations: [mat, nahi, nahin, never, "don't", dont, not]
+  clause_breaks: [warna, otherwise, nahi to, varna]
+
+languages:
+  en:
+    S1: [calling from the police, from mumbai crime branch, customs department, telecom department]
+    S2: [you will be arrested, your parcel contains, linked to money laundering, case against you,
+         your son has met with an accident, your son is in police custody]
+    S3: [this is a confidential investigation, you cannot tell anyone, do not inform anyone]
+    S4: [you must act now, before the deadline, in the next one hour]
+    S5: [move your money, verify your funds, install the app, share the code, pay the fine]
+    negations: [never, "don't", not, dont]
+    clause_breaks: [otherwise, or else]
+
+  hi:
+    S1: [पुलिस, सीबीआई, कस्टम्स, कस्टम, साइबर सेल, साइबर क्राइम, क्राइम ब्रांच, नारकोटिक्स,
+         जज, अदालत, कोर्ट, इंस्पेक्टर, दरोगा, थाने, आरबीआई, ट्राई, फेडेक्स, ईडी अधिकारी]
+    S2: [गिरफ्तार, गिरफ़्तार, गिरफ्तारी, गिरफ़्तारी, अरेस्ट, वारंट, एफआईआर, केस दर्ज, मुकदमा,
+         मनी लॉन्ड्रिंग, ड्रग्स, नशीले, जब्त, ज़ब्त, जेल, एक्सीडेंट, दुर्घटना, हादसा,
+         खाता बंद, सिम बंद, ब्लॉक हो जाएगा]
+    S3: [किसी को मत बताना, किसी को मत बताइए, किसी को मत बताइये, किसी को नहीं बताना,
+         किसी को कुछ मत, फोन मत काटना, फ़ोन मत काटना, फोन मत काटिए, फ़ोन मत काटिए, कॉल मत काटना,
+         कॉल मत काटिए, वीडियो कॉल पर रहिए, वीडियो कॉल पर बने रहिए, घर वालों को मत, परिवार को मत,
+         गोपनीय, अकेले कमरे]
+    S4: [तुरंत, फ़ौरन, फौरन, अभी के अभी, दो घंटे, आज ही, वरना, नहीं तो, जल्दी कीजिए, जल्दी करो]
+    S5: [ट्रांसफर, सेफ अकाउंट, सुरक्षित खाते, वेरिफिकेशन, ओटीपी, यूपीआई, आधार नंबर, खाता नंबर,
+         अकाउंट नंबर, बैंक डिटेल, पैसे भेज, पैसा भेज, पैसे डाल, रकम जमा, एनीडेस्क, टीमव्यूअर,
+         एटीएम पिन, सीवीवी]
+    negations: [मत, नहीं, न]
+    clause_breaks: [वरना, नहीं तो]
+
+  ta:
+    needs_native_review: true
+    S1: [போலீஸ், காவல்துறை, சிபிஐ, சுங்கத்துறை, சைபர் கிரைம், நீதிபதி, நீதிமன்றம், அதிகாரி]
+    S2: [கைது, வாரண்ட், வழக்கு, போதைப்பொருள், பறிமுதல், சிறை, விபத்து, முடக்கப்படும்]
+    S3: [யாரிடமும் சொல்லாதீர்கள், யாருக்கும் சொல்ல வேண்டாம், அழைப்பை துண்டிக்காதீர்கள்,
+         போனை வைக்காதீர்கள், வீடியோ அழைப்பில் இருங்கள்]
+    S4: [உடனே, உடனடியாக, இப்போதே, இன்றே, இல்லையென்றால், இரண்டு மணி நேரத்தில்]
+    S5: [பணம் அனுப்ப, பணத்தை மாற்ற, ஓடிபி, ஆதார் எண், வங்கி விவரங்கள், கணக்கு எண், டிரான்ஸ்பர்]
+    negations: [வேண்டாம், கூடாது, இல்லை, ஒருபோதும், ~ாதீர்கள், ~ாதே]
+    clause_breaks: [இல்லையென்றால்]
+
+  bn:
+    needs_native_review: true
+    S1: [পুলিশ, সিবিআই, কাস্টমস, সাইবার ক্রাইম, বিচারক, আদালত, অফিসার]
+    S2: [গ্রেফতার, গ্রেপ্তার, ওয়ারেন্ট, মামলা, মাদক, বাজেয়াপ্ত, জেল, দুর্ঘটনা, বন্ধ হয়ে যাবে]
+    S3: [কাউকে বলবেন না, কাউকে জানাবেন না, ফোন কাটবেন না, কল কাটবেন না, ভিডিও কলে থাকুন,
+         পরিবারকে জানাবেন না]
+    S4: [এখনই, এক্ষুনি, আজকেই, নইলে, দুই ঘণ্টার মধ্যে]
+    S5: [টাকা পাঠান, টাকা ট্রান্সফার, ট্রান্সফার, ওটিপি, আধার নম্বর, ব্যাংকের বিবরণ,
+         অ্যাকাউন্ট নম্বর]
+    negations: [না, নয়, কখনও]
+    clause_breaks: [নইলে, না হলে]
+
+  kn:
+    needs_native_review: true
+    S1: [ಪೊಲೀಸ್, ಸಿಬಿಐ, ಕಸ್ಟಮ್ಸ್, ನ್ಯಾಯಾಧೀಶ, ನ್ಯಾಯಾಲಯ, ಅಧಿಕಾರಿ]
+    S2: [ಬಂಧನ, ಬಂಧಿಸ, ಅರೆಸ್ಟ್, ವಾರಂಟ್, ಪ್ರಕರಣ, ಮಾದಕ, ಜೈಲು, ಅಪಘಾತ]
+    S3: [ಯಾರಿಗೂ ಹೇಳಬೇಡಿ, ಫೋನ್ ಕಟ್ ಮಾಡಬೇಡಿ, ಕರೆ ಕಟ್ ಮಾಡಬೇಡಿ, ವಿಡಿಯೋ ಕಾಲ್‌ನಲ್ಲಿ ಇರಿ]
+    S4: [ತಕ್ಷಣ, ಈಗಲೇ, ಇಂದೇ, ಇಲ್ಲದಿದ್ದರೆ, ಎರಡು ಗಂಟೆಯೊಳಗೆ]
+    S5: [ಹಣ ಕಳುಹಿಸಿ, ಹಣ ವರ್ಗಾಯಿಸಿ, ಒಟಿಪಿ, ಆಧಾರ್ ಸಂಖ್ಯೆ, ಬ್ಯಾಂಕ್ ವಿವರ, ಖಾತೆ ಸಂಖ್ಯೆ]
+    negations: [ಬೇಡ, ಬೇಡಿ, ಇಲ್ಲ, ಬಾರದು, ಎಂದಿಗೂ, ~ಬೇಡಿ, ~ಬೇಡ]
+    clause_breaks: [ಇಲ್ಲದಿದ್ದರೆ]
+
+  te:
+    needs_native_review: true
+    S1: [పోలీస్, పోలీసు, సీబీఐ, కస్టమ్స్, న్యాయమూర్తి, కోర్టు, అధికారి]
+    S2: [అరెస్ట్, అరెస్టు, వారెంట్, కేసు, డ్రగ్స్, జైలు, ప్రమాదం, బ్లాక్ అవుతుంది]
+    S3: [ఎవరికీ చెప్పకండి, ఫోన్ కట్ చేయకండి, కాల్ కట్ చేయకండి, వీడియో కాల్‌లో ఉండండి]
+    S4: [వెంటనే, ఇప్పుడే, ఈరోజే, లేకపోతే, రెండు గంటల్లో]
+    S5: [డబ్బు పంపండి, డబ్బు ట్రాన్స్‌ఫర్, ఓటీపీ, ఆధార్ నంబర్, బ్యాంక్ వివరాలు, ఖాతా నంబర్]
+    negations: [వద్దు, కాదు, లేదు, ఎప్పుడూ, ~కండి]
+    clause_breaks: [లేకపోతే]
+
+  mr:
+    needs_native_review: true
+    S1: [पोलीस, सीबीआय, कस्टम्स, सायबर क्राइम, न्यायाधीश, न्यायालय, अधिकारी]
+    S2: [अटक, वॉरंट, गुन्हा, ड्रग्स, तुरुंग, अपघात, बंद होईल]
+    S3: [कोणालाही सांगू नका, कुणालाही सांगू नका, फोन कट करू नका, कॉल कट करू नका,
+         व्हिडिओ कॉलवर राहा]
+    S4: [ताबडतोब, लगेच, आत्ताच, आजच, नाहीतर, दोन तासांत]
+    S5: [पैसे पाठवा, पैसे ट्रान्सफर, ओटीपी, आधार नंबर, बँक तपशील, खाते क्रमांक]
+    negations: [नका, नाही, नये, कधीही]
+    clause_breaks: [नाहीतर]
