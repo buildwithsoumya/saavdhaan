@@ -1,0 +1,236 @@
+@font-face {
+  font-family: "Noto Sans Devanagari";
+  src: url("fonts/noto-devanagari.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF;
+}
+@font-face {
+  font-family: "Work Sans";
+  src: url("fonts/work-sans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Inland-letter paper, navy ink, postmark inks per alert level. */
+:root {
+  --paper: #d9e7ef;
+  --paper-deep: #c6dae6;
+  --rule: #9db8cb;
+  --ink: #15233f;
+  --ink-soft: #3a4d6b;
+  --safe: #17643a;
+  --caution: #7a4f00;
+  --caution-wash: #f3dfa6;
+  --danger: #b0221b;
+  --stop: #8d0c0c;
+  --stop-wash: #f6d4cf;
+  --level-ink: var(--safe);
+  --radius: 6px;
+  --font: "Work Sans", "Noto Sans Devanagari", "Nirmala UI", "Noto Sans", system-ui, sans-serif;
+  color-scheme: light;
+}
+body[data-level="1"] { --level-ink: var(--caution); }
+body[data-level="2"] { --level-ink: var(--danger); }
+body[data-level="3"] { --level-ink: var(--stop); }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.25rem/1.45 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--ink); color: var(--paper); }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* ---- top bar ---- */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 14px 16px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.mark { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+.mark [lang="en"] { font-weight: 500; opacity: 0.85; }
+.meta { display: flex; gap: 20px; margin: 0 auto 0 0; }
+.meta dt { font-size: 0.8rem; opacity: 0.8; }
+.meta dd { margin: 0; font-size: 1.15rem; font-weight: 600; }
+.listen {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 20px;
+  border: 2px solid var(--paper);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 1.1rem/1.2 var(--font);
+  cursor: pointer;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.listen svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.listen:hover { background: #fff; }
+body[data-listening="true"] .listen { background: transparent; color: var(--paper); }
+body[data-listening="true"] .listen svg { stroke: #ff8a80; }
+
+main {
+  display: grid;
+  gap: 28px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+/* ---- status: the postmark ---- */
+.status { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.stamp {
+  display: grid;
+  justify-items: center;
+  width: min(100% - 24px, 460px);
+  padding: 18px 34px 14px;
+  border: 7px double var(--level-ink);
+  border-radius: 22px;
+  color: var(--level-ink);
+  transform: rotate(-3deg);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 11px, color-mix(in srgb, var(--level-ink) 9%, transparent) 11px 13px);
+}
+.stamp-hi { font-size: clamp(3rem, 12vw, 5.5rem); font-weight: 800; line-height: 1.15; }
+.stamp-en { font-size: clamp(1.5rem, 5vw, 2.2rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.stamp-level {
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+body.stamped .stamp { animation: stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes stamp {
+  from { transform: rotate(-9deg) scale(1.25); opacity: 0.2; filter: blur(2px); }
+  to { transform: rotate(-3deg) scale(1); opacity: 1; filter: blur(0); }
+}
+.advice { margin: 6px 0 0; font-size: clamp(1.4rem, 4.5vw, 2rem); font-weight: 600; max-width: 30ch; text-wrap: balance; }
+.advice [lang="en"] { display: block; font-size: 0.75em; font-weight: 500; color: var(--ink-soft); }
+.conn { margin: 0; font-size: 1rem; color: var(--ink-soft); }
+
+/* ---- 1930 ---- */
+.helpline {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 22px 16px;
+  border: 4px solid var(--stop);
+  border-radius: var(--radius);
+  background: var(--stop-wash);
+  color: var(--stop);
+  text-align: center;
+}
+.helpline p { margin: 0; }
+.helpline-lead { font-size: 1.5rem; font-weight: 700; }
+.helpline-lead [lang="en"] { display: block; font-size: 0.8em; font-weight: 600; }
+.helpline-number { font-size: clamp(5rem, 22vw, 9rem); font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+.helpline-note { font-size: 1rem; font-weight: 500; }
+.helpline-family { margin-top: 10px !important; font-size: 1.3rem; font-weight: 700; color: var(--ink); }
+
+/* ---- stages: numbered stamp boxes on one route ---- */
+.section-title { margin: 0 0 12px; font-size: 1.15rem; font-weight: 700; color: var(--ink-soft); }
+.stages {
+  --gap: 10px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stages::before { /* the route line joining the five boxes */
+  content: "";
+  position: absolute;
+  inset: 26px 10% auto;
+  height: 3px;
+  background: var(--rule);
+}
+.stage { position: relative; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.stage-no {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 3px dashed var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 1.5rem;
+  font-weight: 700;
+  transition: background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out;
+}
+.stage-name { font-weight: 700; line-height: 1.2; }
+.stage-name [lang="en"] { display: block; font-size: 0.85rem; font-weight: 500; color: var(--ink-soft); }
+.heard { font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
+.heard.none { font-weight: 400; color: var(--ink-soft); font-size: 0.9rem; }
+.stage.on .stage-no { border: 3px solid var(--level-ink); background: var(--level-ink); color: var(--paper); }
+.stage.on .heard { color: var(--level-ink); }
+
+/* ---- transcript on ruled letter lines ---- */
+.letter { min-width: 0; }
+.lines {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 14px;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-size: 1.3rem;
+  line-height: 1.5;
+  scrollbar-color: var(--rule) transparent;
+}
+.lines li { padding: 8px 0; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+.lines .empty { color: var(--ink-soft); font-size: 1.05rem; }
+
+/* ---- family settings ---- */
+.settings { border-top: 2px solid var(--rule); padding-top: 12px; }
+.settings summary { cursor: pointer; font-size: 1.15rem; font-weight: 700; color: var(--ink-soft); padding: 8px 0; }
+.settings-body { display: grid; gap: 18px; padding-top: 12px; max-width: 640px; }
+.field { display: grid; gap: 6px; font-weight: 600; }
+.field small { font-weight: 400; color: var(--ink-soft); }
+.field select, .field input {
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 2px solid var(--ink-soft);
+  border-radius: var(--radius);
+  background: #f4f8fb;
+  color: var(--ink);
+  font: inherit;
+}
+.field input::placeholder { color: #50627d; }
+.check { display: flex; gap: 12px; align-items: flex-start; font-weight: 600; }
+.check input { width: 28px; height: 28px; margin: 2px 0 0; accent-color: var(--ink); flex: none; }
+
+@media (max-width: 700px) {
+  body { font-size: 1.15rem; }
+  .meta { order: 3; width: 100%; }
+  .listen { margin-left: auto; }
+  .stages { grid-template-columns: 1fr; }
+  .stages::before { inset: 10px auto 10px 25px; width: 3px; height: auto; }
+  .stage { grid-template-columns: 54px 1fr; justify-items: start; text-align: left; column-gap: 14px; }
+  .stage-no { grid-row: span 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.stamped .stamp { animation: none; }
+  * { transition: none !important; }
+}

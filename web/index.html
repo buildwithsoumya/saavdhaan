@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>सावधान · Saavdhaan</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-level="0" data-listening="false">
+  <header class="bar">
+    <h1 class="mark"><span lang="hi">सावधान</span> <span lang="en">Saavdhaan</span></h1>
+    <dl class="meta">
+      <div><dt>भाषा · Language</dt><dd id="lang">—</dd></div>
+      <div><dt>चेतावनी समय · Alert in</dt><dd id="latency">—</dd></div>
+    </dl>
+    <button id="listen" class="listen" type="button" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 15Z"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+      <span id="listen-label">सुनना शुरू करें · Start listening</span>
+    </button>
+  </header>
+
+  <main>
+    <section class="status" aria-live="assertive" aria-atomic="true">
+      <div class="stamp" id="stamp">
+        <span class="stamp-hi" id="status-hi">सुरक्षित</span>
+        <span class="stamp-en" id="status-en">Safe</span>
+        <span class="stamp-level" id="status-level">L0</span>
+      </div>
+      <p class="advice" id="advice"><span lang="hi">बात जारी रखें।</span> <span lang="en">You can keep talking.</span></p>
+      <p class="conn" id="conn">सुन नहीं रहा · Not listening</p>
+    </section>
+
+    <section class="helpline" id="helpline" hidden>
+      <p class="helpline-lead"><span lang="hi">फ़ोन काटें। मदद के लिए कॉल करें</span> <span lang="en">Hang up. Call for help</span></p>
+      <p class="helpline-number">1930</p>
+      <p class="helpline-note">राष्ट्रीय साइबर अपराध हेल्पलाइन · National cyber-crime helpline</p>
+      <p class="helpline-family" id="family-line" hidden></p>
+    </section>
+
+    <section class="route" aria-label="Scam stages">
+      <h2 class="section-title">धोखे के कदम · Scam steps</h2>
+      <ol class="stages" id="stages"></ol>
+    </section>
+
+    <section class="letter" aria-label="Live transcript">
+      <h2 class="section-title">बातचीत · What the caller said</h2>
+      <ol class="lines" id="lines" aria-live="polite">
+        <li class="empty">सुनना शुरू करने पर बातचीत यहाँ दिखेगी · The call appears here once listening starts.</li>
+      </ol>
+    </section>
+
+    <details class="settings">
+      <summary>परिवार के लिए सेटिंग · Family settings</summary>
+      <div class="settings-body">
+        <label class="field">
+          <span>चेतावनी की आवाज़ · Alert voice</span>
+          <select id="voice"></select>
+        </label>
+        <label class="field">
+          <span>परिवार का संपर्क · Family contact <small>(सिर्फ़ दिखाने के लिए · shown on screen only)</small></span>
+          <input id="family" type="text" autocomplete="off" placeholder="नाम और नंबर · Name and number">
+        </label>
+        <label class="check">
+          <input id="record" type="checkbox">
+          <span>रिपोर्ट के लिए कॉल रिकॉर्ड करें · Record this call for a report</span>
+        </label>
+        <div id="enrol-slot"></div>
+      </div>
+    </details>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
