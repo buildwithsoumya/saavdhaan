@@ -29,11 +29,88 @@ let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null;
 
 // ---- settings -------------------------------------------------------------
+async function loadVoices() {
+  let family = [];
+  try {
+    const r = await fetch("/api/voices");
+    if (r.ok) family = await r.json();
+  } catch {}
+  const voice = $("voice");
+  voice.innerHTML = family.map((f) => `<option value="family:${f.id}">परिवार · Family: ${esc(f.name)}</option>`).join("")
+    + VOICES.map((v) => `<option>${v}</option>`).join("");
+  const saved = store.get("voice", "Shivani");
+  voice.value = [...voice.options].some((o) => o.value === saved) ? saved : "Shivani";
+  $("voices").innerHTML = family.map((f) => `<li><span>${esc(f.name)}</span>
+    <button class="btn btn-quiet" type="button" data-del="${f.id}">हटाएँ · Delete</button></li>`).join("");
+}
+
+// ---- family voice enrolment ----------------------------------------------
+let clip = null, recorder = null;
+function setClip(blob, label) {
+  clip = blob;
+  $("enrol-clip").textContent = label;
+  $("enrol-save").disabled = !(clip && $("enrol-consent").checked);
+}
+async function recordClip() {
+  if (recorder) return recorder.stop();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (err) { return ($("enrol-status").textContent = `माइक नहीं मिला · Microphone blocked: ${err.message}`); }
+  const chunks = [], started = Date.now();
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (e) => chunks.push(e.data);
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now() - started) / 1000);
+    $("enrol-clip").textContent = `रिकॉर्डिंग… ${s}s · Recording… press again to stop`;
+    if (s >= 20) recorder?.stop();
+  }, 250);
+  recorder.onstop = () => {
+    clearInterval(tick);
+    stream.getTracks().forEach((t) => t.stop());
+    const secs = Math.round((Date.now() - started) / 1000);
+    setClip(new Blob(chunks, { type: recorder.mimeType }), `${secs}s रिकॉर्ड हुआ · recorded`);
+    recorder = null;
+    $("enrol-rec").textContent = "दोबारा रिकॉर्ड करें · Record again";
+  };
+  recorder.start();
+  $("enrol-rec").textContent = "रोकें · Stop";
+}
+async function saveVoice() {
+  const form = new FormData();
+  form.append("audio", clip, "reference");
+  form.append("name", $("enrol-name").value);
+  form.append("consent", $("enrol-consent").checked);
+  $("enrol-save").disabled = true;
+  $("enrol-status").textContent = "आवाज़ बना रहे हैं… · Creating voice…";
+  try {
+    const r = await fetch("/api/voices", { method: "POST", body: form });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
+    store.set("voice", `family:${body.id}`);
+    await loadVoices();
+  } catch (err) {
+    $("enrol-status").textContent = `नहीं हो पाया · Could not add voice: ${err.message}`;
+  } finally {
+    $("enrol-save").disabled = !(clip && $("enrol-consent").checked);
+  }
+}
+
 function initSettings() {
   const voice = $("voice");
-  voice.innerHTML = VOICES.map((v) => `<option>${v}</option>`).join("");
-  voice.value = store.get("voice", "Shivani");
+  loadVoices();
   voice.onchange = () => store.set("voice", voice.value);
+  $("enrol-rec").onclick = recordClip;
+  $("enrol-file").onchange = (e) => e.target.files[0] && setClip(e.target.files[0], e.target.files[0].name);
+  $("enrol-consent").onchange = () => setClip(clip, $("enrol-clip").textContent);
+  $("enrol-save").onclick = saveVoice;
+  $("voices").onclick = async (e) => {
+    const id = e.target.dataset.del;
+    if (!id) return;
+    await fetch(`/api/voices/${id}`, { method: "DELETE" });
+    if (store.get("voice", "") === `family:${id}`) store.set("voice", "Shivani");
+    loadVoices();
+  };
   $("family").value = store.get("family", "");
   $("family").oninput = (e) => store.set("family", e.target.value);
   $("record").checked = store.get("record", "0") === "1";
