@@ -1,0 +1,16 @@
+{
+  "name": "सावधान · Saavdhaan",
+  "short_name": "Saavdhaan",
+  "description": "Listens to a speakerphone call and warns when it sounds like a scam.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#d9e7ef",
+  "theme_color": "#15233f",
+  "lang": "hi",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml"}
+  ]
+}
