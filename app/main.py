@@ -14,7 +14,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, enrol, gnani, report
+from app import alerts, enrol, gnani, honeypot, report
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -28,6 +28,8 @@ class Call:
     tracker: Tracker = field(default_factory=Tracker)
     alerted: int = 0
     pcm: bytearray = field(default_factory=bytearray)
+    honeypot: bool = False
+    history: list = field(default_factory=list)  # honeypot chat: caller = user, persona = assistant
 
 
 CALLS: dict[str, Call] = {}
@@ -75,7 +77,44 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             else:
                 await ws.send_text(json.dumps(payload, ensure_ascii=False))
 
+    say_lock = asyncio.Lock()
+
+    def spawn(coro):
+        task = asyncio.create_task(coro)
+        alert_tasks.add(task)
+        task.add_done_callback(alert_tasks.discard)
+
+    async def set_honeypot(on: bool, reason: str):
+        state.honeypot = on
+        await send({"type": "honeypot", "on": on, "reason": reason})
+        if not on and state.history:
+            log = Path(settings.data_dir) / "honeypot" / f"{call}.json"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(json.dumps(state.history, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    async def persona_reply(text, lang):
+        """Answer the caller in the persona voice; one reply at a time."""
+        async with say_lock:
+            if not state.honeypot:
+                return
+            state.history.append({"role": "user", "content": text})
+            line = await honeypot.reply(state.history, lang)
+            state.history.append({"role": "assistant", "content": line})
+            try:
+                audio = await gnani.tts(line, voice=settings.honeypot_voice,
+                                        language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
+            except gnani.GnaniError as e:
+                await send({"type": "error", "message": f"honeypot voice failed: {e}"})
+                return
+            await send({"type": "say", "text": line})
+            await send(audio)
+            exchanges = sum(m["role"] == "assistant" for m in state.history)
+            if honeypot.evidence_complete(state.tracker, exchanges):
+                await set_honeypot(False, "evidence")
+
     async def play_alert(level, lang):
+        if state.honeypot:
+            return  # the caller would hear it; the screen still shows the level
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
         except gnani.GnaniError as e:
@@ -99,9 +138,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 await send({"type": "info", "message": "keyterms switched to extraction stage"})
             if level > state.alerted:
                 state.alerted = level
-                task = asyncio.create_task(play_alert(level, lang))
-                alert_tasks.add(task)
-                task.add_done_callback(alert_tasks.discard)
+                spawn(play_alert(level, lang))
+            if state.honeypot:
+                spawn(persona_reply(msg["text"], lang))
         elif kind == "error":
             await send({"type": "error", "message": msg.get("message", "STT error")})
 
@@ -122,11 +161,24 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 await stream.send_audio(msg["bytes"])
                 if record:
                     state.pcm += msg["bytes"]
-            elif msg.get("text") and json.loads(msg["text"]).get("type") == "stop":
-                break
+            elif msg.get("text"):
+                cmd = json.loads(msg["text"])
+                if cmd.get("type") == "stop":
+                    break
+                if cmd.get("type") == "honeypot":
+                    if not cmd.get("on"):
+                        await set_honeypot(False, "user")
+                    elif not settings.groq_api_key:
+                        await send({"type": "error", "message": "honeypot needs GROQ_API_KEY"})
+                    elif state.tracker.level() < 2:
+                        await send({"type": "error", "message": "honeypot is only allowed once the call is L2 or higher"})
+                    else:
+                        await set_honeypot(True, "user")
     except WebSocketDisconnect:
         pass
     finally:
+        if state.honeypot:
+            await set_honeypot(False, "ended")
         await stream.close()
         if record and state.pcm:
             save_recording(call, bytes(state.pcm))
