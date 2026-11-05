@@ -276,3 +276,107 @@ def test_batch_failure_raises(monkeypatch):
     mock(handler, monkeypatch)
     with pytest.raises(gnani.GnaniError, match="FAILED"):
         asyncio.run(gnani.batch_transcribe(b"RIFF"))
+
+
+def test_previous_text_reaches_the_wire_as_utf8():
+    h = websockets.datastructures.Headers()
+    h["previous_text"] = gnani.stt_headers(previous_text="नमस्ते जी")["previous_text"]
+    assert "previous_text: नमस्ते जी\r\n".encode("utf-8") in h.serialize()
+
+
+def test_short_lived_sessions_back_off_instead_of_storming():
+    async def run():
+        stream, sockets, _, clock = make_stream()
+        await stream.start()
+        await sockets[0].close()  # server accepts, then closes at once (e.g. concurrency cap)
+        await settle()
+        for _ in range(20):  # 20 frames at the same instant: no reconnect storm
+            await stream.send_audio(b"\0" * 1024)
+        assert len(sockets) == 1
+        clock.t += 1.1  # after the 1 s backoff it reconnects once
+        await stream.send_audio(b"\0" * 1024)
+        assert len(sockets) == 2
+        assert 0 < len(sockets[1].frames()) <= gnani.RECONNECT_BUFFER_BYTES // 1024 + 1
+        await sockets[1].close()
+        await settle()
+        clock.t += 1.1
+        await stream.send_audio(b"\0" * 1024)
+        assert len(sockets) == 2  # second short session doubles the wait to 2 s
+    asyncio.run(run())
+
+
+def test_reader_survives_bad_frames_and_handler_errors():
+    async def run():
+        calls = []
+
+        async def on_event(msg):
+            calls.append(msg)
+            if msg.get("boom"):
+                raise RuntimeError("caller bug")
+
+        async def connect(url, additional_headers):
+            return ws
+
+        ws = FakeWS({})
+        stream = gnani.SttStream(on_event, connect=connect)
+        await stream.start()
+        for raw in ("not json", json.dumps({"type": "x", "boom": True}), json.dumps({"type": "transcript", "text": "ok"})):
+            await ws.inbox.put(raw)
+        await settle()
+        assert calls[-1]["text"] == "ok" and not stream._dead
+    asyncio.run(run())
+
+
+def test_close_flushes_last_utterance_and_closes_rotated_sessions(monkeypatch):
+    async def run():
+        stream, sockets, events, clock = make_stream()
+        await stream.start()
+        clock.t = gnani.ROTATE_AFTER_S
+        task = asyncio.create_task(stream.send_audio(b"\0" * 1024))  # rotation waits for the flush
+        await settle()
+        await sockets[0].inbox.put(json.dumps({"type": "transcript", "text": "aakhri baat"}))
+        await task
+        assert sockets[1].headers["previous_text"] == "aakhri baat"  # flushed text made it into context
+        closing = asyncio.create_task(stream.close())
+        await settle()
+        await sockets[1].inbox.put(json.dumps({"type": "transcript", "text": "phone rakhiye"}))
+        await closing
+        assert events[-1]["text"] == "phone rakhiye"
+        assert sockets[0].closed and sockets[1].closed
+    asyncio.run(run())
+
+
+def test_network_errors_become_gnani_errors(monkeypatch):
+    def handler(req):
+        raise httpx.ConnectTimeout("slow", request=req)
+
+    mock(handler, monkeypatch)
+    with pytest.raises(gnani.GnaniError, match="failed"):
+        asyncio.run(gnani.tts("x", voice="Shivani", language="hi-IN"))
+
+
+def test_tts_sse_retries_429(monkeypatch):
+    calls = []
+    body = f'event: chunk\ndata: {{"audio": "{base64.b64encode(b"ok").decode()}"}}\n\n'
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(429) if len(calls) == 1 else httpx.Response(200, text=body)
+
+    mock(handler, monkeypatch)
+
+    async def run():
+        return [c async for c in gnani.tts_sse("x", voice="Shivani", language="hi-IN")]
+    assert asyncio.run(run()) == [b"ok"] and len(calls) == 2
+
+
+def test_batch_gives_up_after_deadline(monkeypatch):
+    def handler(req):
+        if req.url.path == "/stt/v3/batch/jobs":
+            return httpx.Response(201, json={"job_id": "j1"})
+        return httpx.Response(200, json={"status": "QUEUED"})
+
+    mock(handler, monkeypatch)
+    monkeypatch.setattr(gnani, "BATCH_TIMEOUT_S", -1)
+    with pytest.raises(gnani.GnaniError, match="still QUEUED"):
+        asyncio.run(gnani.batch_transcribe(b"RIFF"))
