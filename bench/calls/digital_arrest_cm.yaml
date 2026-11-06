@@ -1,0 +1,27 @@
+id: digital_arrest_cm
+label: scam
+template: digital_arrest
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Chetana
+s5_turn: 6
+turns:
+- speaker: caller
+  text: नमस्ते, मैं Mumbai crime branch से inspector विनोद बोल रहा हूँ।
+- speaker: victim
+  text: जी, क्या बात है?
+- speaker: caller
+  text: आपके Aadhaar से एक bank account खुला है जिसमें money laundering हुई है। आपके नाम पर arrest warrant निकला है।
+- speaker: victim
+  text: क्या? मैंने तो कुछ नहीं किया।
+- speaker: caller
+  text: यह confidential जाँच है। किसी को मत बताना और video call पर बने रहिए, फ़ोन मत काटना।
+- speaker: victim
+  text: ठीक है साहब, बताइए क्या करना है।
+- speaker: caller
+  text: जाँच के लिए अपने सारे पैसे तुरंत RBI के safe account में transfer कीजिए, दो घंटे में, वरना arrest होगा।
+- speaker: victim
+  text: लेकिन मुझे अपने बेटे से पूछना होगा।

@@ -1,0 +1,23 @@
+id: courier_drugs_bn
+label: scam
+template: courier_drugs
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Harshad
+  victim: Vasudha
+s5_turn: 4
+turns:
+- speaker: caller
+  text: আমি ফেডেক্স কুরিয়ার থেকে বলছি। আপনার একটা পার্সেল কাস্টমস আটকেছে।
+- speaker: victim
+  text: আমি তো কোনো পার্সেল পাঠাইনি।
+- speaker: caller
+  text: ওতে মাদক আর জাল পাসপোর্ট পাওয়া গেছে। আপনার বিরুদ্ধে মামলা হবে।
+- speaker: victim
+  text: এখন আমি কী করব?
+- speaker: caller
+  text: এখনই ভেরিফিকেশন অ্যামাউন্ট পাঠান আর অ্যানিডেস্ক অ্যাপ নামান, নইলে পুলিশ বাড়িতে আসবে।
+- speaker: victim
+  text: দাঁড়ান, একটু ভাবি।

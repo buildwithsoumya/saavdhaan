@@ -125,6 +125,12 @@ def test_every_non_hindi_native_list_is_flagged_for_review():
             assert block.get("needs_native_review") is True, code
 
 
+def test_genuine_warnings_and_verification_visits_stay_quiet():
+    assert "S5" not in stages("If anyone asks for an OTP, don't give it, and never transfer money.")
+    assert "S5" not in stages("नमस्ते, मैं थाने से बोल रहा हूँ, आपके पासपोर्ट के पुलिस वेरिफिकेशन के लिए।")
+    assert "S5" in stages("अभी के अभी वेरिफिकेशन अमाउंट भेजिए")
+
+
 def test_short_hindi_entries_do_not_match_inside_other_words():
     assert stages("आपका कस्टमर केयर नंबर बदल गया है, ट्राई करो") == set()
     assert stages("ट्राई की तरफ़ से कॉल है, जज साहब सुनवाई करेंगे") == {"S1"}

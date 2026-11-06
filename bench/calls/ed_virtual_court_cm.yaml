@@ -1,0 +1,25 @@
+id: ed_virtual_court_cm
+label: scam
+template: ed_virtual_court
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Kalpana
+s5_turn: 5
+turns:
+- speaker: caller
+  text: मैं Enforcement Directorate से officer बोल रहा हूँ। आपका नाम hawala case में आया है।
+- speaker: victim
+  text: मेरा नाम? कैसे?
+- speaker: caller
+  text: अभी online court में judge साहब सुनवाई करेंगे। कमरे में अकेले रहिए, किसी को कुछ मत बताइए।
+- speaker: victim
+  text: ठीक है।
+- speaker: caller
+  text: Judge साहब का order है कि जाँच पूरी होने तक आपकी सारी जमा राशि सरकारी खाते में रहेगी।
+- speaker: caller
+  text: आज ही RTGS से पैसे transfer कीजिए, यह last chance है।
+- speaker: victim
+  text: मेरे पास इतने पैसे नहीं हैं।

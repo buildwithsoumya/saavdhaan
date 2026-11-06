@@ -1,0 +1,21 @@
+id: bank_fraud_desk_ta
+label: benign
+template: bank_fraud_desk
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Devansh
+  victim: Lakshmi
+s5_turn: null
+turns:
+- speaker: caller
+  text: வணக்கம், உங்கள் வங்கியின் மோசடி தடுப்பு பிரிவிலிருந்து பேசுகிறேன்.
+- speaker: caller
+  text: உங்கள் கார்டில் சந்தேகமான பரிவர்த்தனை நிறுத்தப்பட்டது. வங்கி ஒருபோதும் ஓடிபி கேட்காது.
+- speaker: victim
+  text: சரி, அதை நான் செய்யவில்லை.
+- speaker: caller
+  text: சரி, கார்டை முடக்கிவிட்டோம். உங்கள் ஓடிபி அல்லது சிவிவியை யாரிடமும் பகிர வேண்டாம்.
+- speaker: caller
+  text: புதிய கார்டை கிளையில் பெற்றுக்கொள்ளுங்கள். நன்றி.

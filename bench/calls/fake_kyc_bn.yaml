@@ -1,0 +1,23 @@
+id: fake_kyc_bn
+label: scam
+template: fake_kyc
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Avinash
+  victim: Riyaa
+s5_turn: 4
+turns:
+- speaker: caller
+  text: নমস্কার, আমি আরবিআই কেওয়াইসি টিম থেকে বলছি।
+- speaker: victim
+  text: হ্যাঁ, বলুন।
+- speaker: caller
+  text: আপনার কেওয়াইসি অসম্পূর্ণ, আজ রাতে আপনার অ্যাকাউন্ট বন্ধ হয়ে যাবে।
+- speaker: victim
+  text: সে কী, ওতেই তো আমার পেনশন আসে।
+- speaker: caller
+  text: এখনই আপনার ওটিপি আর অ্যাকাউন্ট নম্বর বলুন, আজকেই আপডেট করে দেব।
+- speaker: victim
+  text: এক মিনিট, চশমাটা আনি।

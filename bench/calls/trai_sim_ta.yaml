@@ -1,0 +1,23 @@
+id: trai_sim_ta
+label: scam
+template: trai_sim
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Shubham
+  victim: Riyaa
+s5_turn: 4
+turns:
+- speaker: caller
+  text: இது டிராய் அழைப்பு. உங்கள் எண் இரண்டு மணி நேரத்தில் முடக்கப்படும்.
+- speaker: victim
+  text: ஏன் முடக்கப்படும்?
+- speaker: caller
+  text: உங்கள் பெயரிலான சிம்மிலிருந்து சட்டவிரோத செய்திகள் அனுப்பப்பட்டுள்ளன, சைபர் கிரைமில் வழக்கு உள்ளது.
+- speaker: victim
+  text: நான் என் பிள்ளைகளிடம் மட்டும்தான் பேசுகிறேன்.
+- speaker: caller
+  text: வழக்கை முடிக்க உங்கள் வங்கி விவரங்கள் மற்றும் ஆதார் எண்ணைச் சொல்லுங்கள்.
+- speaker: victim
+  text: எனக்குப் புரியவில்லை.

@@ -1,0 +1,23 @@
+id: courier_drugs_ta
+label: scam
+template: courier_drugs
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Yashraj
+  victim: Kalpana
+s5_turn: 4
+turns:
+- speaker: caller
+  text: நான் ஃபெடெக்ஸ் கூரியரிலிருந்து பேசுகிறேன். உங்கள் பார்சலை சுங்கத்துறை நிறுத்தியுள்ளது.
+- speaker: victim
+  text: நான் எந்த பார்சலும் அனுப்பவில்லை.
+- speaker: caller
+  text: அதில் போதைப்பொருள் மற்றும் போலி பாஸ்போர்ட் இருந்தது. உங்கள் மீது வழக்கு பதிவு செய்யப்படும்.
+- speaker: victim
+  text: இப்போது நான் என்ன செய்வது?
+- speaker: caller
+  text: இப்போதே சரிபார்ப்பு தொகையை அனுப்புங்கள், எனிடெஸ்க் செயலியை நிறுவுங்கள், இல்லையென்றால் போலீஸ் வீட்டுக்கு வரும்.
+- speaker: victim
+  text: கொஞ்சம் இருங்கள், யோசிக்கிறேன்.

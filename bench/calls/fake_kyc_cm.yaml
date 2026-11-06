@@ -1,0 +1,23 @@
+id: fake_kyc_cm
+label: scam
+template: fake_kyc
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Devansh
+  victim: Riyaa
+s5_turn: 4
+turns:
+- speaker: caller
+  text: नमस्कार, मैं RBI की KYC team से बोल रहा हूँ।
+- speaker: victim
+  text: हाँ जी, बोलिए।
+- speaker: caller
+  text: आपकी KYC अधूरी है, आज रात आपका account blocked हो जाएगा।
+- speaker: victim
+  text: अरे, उसमें तो मेरी pension आती है।
+- speaker: caller
+  text: तुरंत अपना OTP और account number बताइए, आज ही update कर देंगे।
+- speaker: victim
+  text: एक minute, मैं चश्मा लाती हूँ।

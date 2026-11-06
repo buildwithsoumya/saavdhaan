@@ -1,0 +1,23 @@
+id: trai_sim_bn
+label: scam
+template: trai_sim
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Prakash
+  victim: Lakshmi
+s5_turn: 4
+turns:
+- speaker: caller
+  text: এটা ট্রাই থেকে কল। আপনার নম্বর দুই ঘণ্টার মধ্যে বন্ধ হয়ে যাবে।
+- speaker: victim
+  text: কেন বন্ধ হবে?
+- speaker: caller
+  text: আপনার নামের সিম থেকে বেআইনি মেসেজ গেছে, সাইবার ক্রাইমে মামলা হয়েছে।
+- speaker: victim
+  text: আমি তো শুধু ছেলেমেয়েদের সঙ্গে কথা বলি।
+- speaker: caller
+  text: মামলা বন্ধ করতে আপনার ব্যাংকের বিবরণ আর আধার নম্বর বলুন।
+- speaker: victim
+  text: আমি বুঝতে পারছি না।

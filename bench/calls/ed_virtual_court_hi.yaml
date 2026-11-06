@@ -1,0 +1,25 @@
+id: ed_virtual_court_hi
+label: scam
+template: ed_virtual_court
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Tarika
+s5_turn: 5
+turns:
+- speaker: caller
+  text: मैं प्रवर्तन निदेशालय से अधिकारी बोल रहा हूँ। आपका नाम हवाला केस में आया है।
+- speaker: victim
+  text: मेरा नाम? कैसे?
+- speaker: caller
+  text: अभी ऑनलाइन कोर्ट में जज साहब सुनवाई करेंगे। कमरे में अकेले रहिए, किसी को कुछ मत बताइए।
+- speaker: victim
+  text: ठीक है।
+- speaker: caller
+  text: जज साहब का आदेश है कि जाँच पूरी होने तक आपकी सारी जमा राशि सरकारी खाते में रहेगी।
+- speaker: caller
+  text: आज ही आरटीजीएस से पैसे ट्रांसफर कीजिए, यह आख़िरी मौका है।
+- speaker: victim
+  text: मेरे पास इतने पैसे नहीं हैं।

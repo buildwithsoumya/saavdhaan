@@ -1,0 +1,25 @@
+id: ed_virtual_court_ta
+label: scam
+template: ed_virtual_court
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Prakash
+  victim: Tarika
+s5_turn: 5
+turns:
+- speaker: caller
+  text: நான் அமலாக்க இயக்குநரகத்திலிருந்து அதிகாரி பேசுகிறேன். ஹவாலா வழக்கில் உங்கள் பெயர் வந்துள்ளது.
+- speaker: victim
+  text: என் பெயரா? எப்படி?
+- speaker: caller
+  text: இப்போது ஆன்லைன் நீதிமன்றத்தில் நீதிபதி விசாரிப்பார். தனியாக இருங்கள், யாருக்கும் சொல்ல வேண்டாம்.
+- speaker: victim
+  text: சரி.
+- speaker: caller
+  text: விசாரணை முடியும் வரை உங்கள் சேமிப்பு அனைத்தும் அரசு கணக்கில் இருக்க வேண்டும் என்று நீதிபதி உத்தரவு.
+- speaker: caller
+  text: இன்றே ஆர்டிஜிஎஸ் மூலம் பணத்தை டிரான்ஸ்பர் செய்யுங்கள், இதுதான் கடைசி வாய்ப்பு.
+- speaker: victim
+  text: என்னிடம் அவ்வளவு பணம் இல்லை.

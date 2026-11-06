@@ -1,0 +1,19 @@
+id: loan_collection_hi
+label: benign
+template: loan_collection
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Yashraj
+  victim: Riyaa
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, मैं फ़ाइनेंस कंपनी से बोल रहा हूँ। आपकी गाड़ी की किस्त पंद्रह दिन से बाकी है।
+- speaker: victim
+  text: हाँ, इस महीने थोड़ी दिक्कत थी।
+- speaker: caller
+  text: कोई बात नहीं। हमारे ऐप से या शाखा में जाकर भुगतान कर दीजिए, लेट फ़ीस लगेगी।
+- speaker: victim
+  text: ठीक है, अगले हफ़्ते कर दूँगी।

@@ -1,0 +1,27 @@
+id: digital_arrest_bn
+label: scam
+template: digital_arrest
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Yashraj
+  victim: Chetana
+s5_turn: 6
+turns:
+- speaker: caller
+  text: নমস্কার, আমি মুম্বাই ক্রাইম ব্রাঞ্চ থেকে ইন্সপেক্টর বিনোদ বলছি।
+- speaker: victim
+  text: হ্যাঁ, কী ব্যাপার?
+- speaker: caller
+  text: আপনার আধার দিয়ে খোলা একটি অ্যাকাউন্টে টাকা পাচার হয়েছে। আপনার নামে গ্রেফতারি ওয়ারেন্ট বেরিয়েছে।
+- speaker: victim
+  text: কী? আমি তো কিছুই করিনি।
+- speaker: caller
+  text: এটা গোপন তদন্ত। কাউকে বলবেন না, ভিডিও কলে থাকুন, ফোন কাটবেন না।
+- speaker: victim
+  text: ঠিক আছে স্যার, বলুন কী করতে হবে।
+- speaker: caller
+  text: যাচাইয়ের জন্য আপনার সব টাকা এখনই আরবিআই সেফ অ্যাকাউন্টে ট্রান্সফার করুন, নইলে গ্রেফতার হবেন।
+- speaker: victim
+  text: কিন্তু আমাকে ছেলেকে জিজ্ঞেস করতে হবে।

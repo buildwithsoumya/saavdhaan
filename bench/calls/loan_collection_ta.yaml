@@ -1,0 +1,19 @@
+id: loan_collection_ta
+label: benign
+template: loan_collection
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Shubham
+  victim: Riyaa
+s5_turn: null
+turns:
+- speaker: caller
+  text: வணக்கம், நான் நிதி நிறுவனத்திலிருந்து பேசுகிறேன். உங்கள் வாகனக் கடன் தவணை பதினைந்து நாட்களாக நிலுவையில் உள்ளது.
+- speaker: victim
+  text: ஆமாம், இந்த மாதம் கொஞ்சம் சிரமம்.
+- speaker: caller
+  text: பரவாயில்லை. எங்கள் செயலி மூலமோ கிளையிலோ செலுத்துங்கள், தாமதக் கட்டணம் உண்டு.
+- speaker: victim
+  text: சரி, அடுத்த வாரம் கட்டுகிறேன்.

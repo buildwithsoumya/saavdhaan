@@ -1,0 +1,27 @@
+id: digital_arrest_ta
+label: scam
+template: digital_arrest
+language: ta-IN
+variant: ta
+needs_native_review: true
+speakers:
+  caller: Devansh
+  victim: Lakshmi
+s5_turn: 6
+turns:
+- speaker: caller
+  text: வணக்கம், நான் மும்பை க்ரைம் பிராஞ்சிலிருந்து இன்ஸ்பெக்டர் வினோத் பேசுகிறேன்.
+- speaker: victim
+  text: சொல்லுங்கள், என்ன விஷயம்?
+- speaker: caller
+  text: உங்கள் ஆதார் மூலம் திறக்கப்பட்ட வங்கிக் கணக்கில் பணமோசடி நடந்துள்ளது. உங்கள் பெயரில் கைது வாரண்ட் உள்ளது.
+- speaker: victim
+  text: என்ன? நான் எதுவும் செய்யவில்லை.
+- speaker: caller
+  text: இது ரகசிய விசாரணை. யாரிடமும் சொல்லாதீர்கள், வீடியோ அழைப்பில் இருங்கள், அழைப்பை துண்டிக்காதீர்கள்.
+- speaker: victim
+  text: சரி சார், என்ன செய்ய வேண்டும் சொல்லுங்கள்.
+- speaker: caller
+  text: சரிபார்ப்புக்காக உங்கள் பணம் முழுவதையும் உடனே ஆர்பிஐ பாதுகாப்பு கணக்கிற்கு டிரான்ஸ்பர் செய்யுங்கள், இல்லையென்றால் கைது.
+- speaker: victim
+  text: ஆனால் நான் என் மகனிடம் கேட்க வேண்டும்.

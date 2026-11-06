@@ -1,0 +1,19 @@
+id: relative_urgent_money_cm
+label: benign
+template: relative_urgent_money
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Yashraj
+  victim: Tarika
+s5_turn: null
+turns:
+- speaker: caller
+  text: दादी, मैं अंकित बोल रहा हूँ। college की fees आज ही भरनी है।
+- speaker: victim
+  text: अरे बेटा, papa से क्यों नहीं माँगे?
+- speaker: caller
+  text: Papa meeting में हैं। आप UPI से भेज दो, शाम को papa लौटा देंगे।
+- speaker: victim
+  text: ठीक है, पहले मैं तुम्हारे papa को फ़ोन करती हूँ।

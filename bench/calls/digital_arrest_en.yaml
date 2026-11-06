@@ -1,0 +1,27 @@
+id: digital_arrest_en
+label: scam
+template: digital_arrest
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Riyaa
+s5_turn: 6
+turns:
+- speaker: caller
+  text: Hello, this is Inspector Vinod from the Mumbai crime branch.
+- speaker: victim
+  text: Yes, what is it?
+- speaker: caller
+  text: A bank account opened with your Aadhaar was used for money laundering. An arrest warrant has been issued in your name.
+- speaker: victim
+  text: What? I have not done anything.
+- speaker: caller
+  text: This is a confidential investigation. Don't tell anyone and stay on video call. Don't cut the call.
+- speaker: victim
+  text: Okay sir, tell me what to do.
+- speaker: caller
+  text: For verification, transfer all your money to the RBI safe account immediately, within two hours, otherwise you will be arrested.
+- speaker: victim
+  text: But I need to ask my son first.

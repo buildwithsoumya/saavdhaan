@@ -1,0 +1,19 @@
+id: relative_urgent_money_en
+label: benign
+template: relative_urgent_money
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Harshad
+  victim: Kalpana
+s5_turn: null
+turns:
+- speaker: caller
+  text: Grandma, it's Ankit. My college fees have to be paid today itself.
+- speaker: victim
+  text: Oh dear, why didn't you ask your father?
+- speaker: caller
+  text: Papa is in a meeting. Please send it by UPI, he will return it in the evening.
+- speaker: victim
+  text: All right, let me call your father first.

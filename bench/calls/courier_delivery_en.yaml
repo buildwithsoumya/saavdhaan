@@ -1,0 +1,19 @@
+id: courier_delivery_en
+label: benign
+template: courier_delivery
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Devansh
+  victim: Tarika
+s5_turn: null
+turns:
+- speaker: caller
+  text: Hello, I am the delivery person. I am at your gate with your order.
+- speaker: victim
+  text: Oh, that must be my medicines.
+- speaker: caller
+  text: Yes, please tell me the delivery code from the message.
+- speaker: victim
+  text: Wait, I am coming down.

@@ -1,0 +1,19 @@
+id: relative_urgent_money_bn
+label: benign
+template: relative_urgent_money
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Shubham
+  victim: Tarika
+s5_turn: null
+turns:
+- speaker: caller
+  text: ঠাকুমা, আমি অঙ্কিত বলছি। কলেজের ফি আজকেই দিতে হবে।
+- speaker: victim
+  text: আরে বাবা, বাবাকে কেন বলিসনি?
+- speaker: caller
+  text: বাবা মিটিংয়ে আছে। তুমি ইউপিআই দিয়ে পাঠিয়ে দাও, সন্ধ্যায় বাবা ফেরত দেবে।
+- speaker: victim
+  text: ঠিক আছে, আগে তোর বাবাকে ফোন করি।

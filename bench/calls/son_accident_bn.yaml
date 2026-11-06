@@ -1,0 +1,23 @@
+id: son_accident_bn
+label: scam
+template: son_accident
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Shubham
+  victim: Tarika
+s5_turn: 4
+turns:
+- speaker: caller
+  text: আমি থানা থেকে বলছি। আপনার ছেলের দুর্ঘটনা হয়েছে, ওকে গ্রেফতার করা হয়েছে।
+- speaker: victim
+  text: হে ভগবান! ও ঠিক আছে তো?
+- speaker: caller
+  text: ও ঠিক আছে, কিন্তু পরিবারকে জানাবেন না, নইলে মামলা বড় হবে।
+- speaker: victim
+  text: ওর সঙ্গে কথা বলান।
+- speaker: caller
+  text: এখন না। জামিনের জন্য এখনই টাকা পাঠান, ইউপিআই দিয়ে।
+- speaker: victim
+  text: কত টাকা?

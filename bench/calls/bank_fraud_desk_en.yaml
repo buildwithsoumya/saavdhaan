@@ -1,0 +1,21 @@
+id: bank_fraud_desk_en
+label: benign
+template: bank_fraud_desk
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Prakash
+  victim: Riyaa
+s5_turn: null
+turns:
+- speaker: caller
+  text: Hello, I am calling from your bank's fraud prevention desk.
+- speaker: caller
+  text: A suspicious transaction on your card was stopped. Please remember, the bank never asks for your OTP.
+- speaker: victim
+  text: I see, I did not make that payment.
+- speaker: caller
+  text: Okay, we have blocked the card. Never share your OTP or CVV with anyone, not even with us.
+- speaker: caller
+  text: Please collect a new card from your branch. Thank you.

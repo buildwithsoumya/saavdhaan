@@ -1,0 +1,25 @@
+id: ed_virtual_court_bn
+label: scam
+template: ed_virtual_court
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Devansh
+  victim: Kalpana
+s5_turn: 5
+turns:
+- speaker: caller
+  text: আমি এনফোর্সমেন্ট ডিরেক্টরেট থেকে অফিসার বলছি। হাওয়ালা মামলায় আপনার নাম এসেছে।
+- speaker: victim
+  text: আমার নাম? কীভাবে?
+- speaker: caller
+  text: এখনই অনলাইন আদালতে বিচারক শুনানি করবেন। ঘরে একা থাকুন, কাউকে জানাবেন না।
+- speaker: victim
+  text: ঠিক আছে।
+- speaker: caller
+  text: বিচারকের আদেশ, তদন্ত শেষ না হওয়া পর্যন্ত আপনার সব টাকা সরকারি অ্যাকাউন্টে থাকবে।
+- speaker: caller
+  text: আজকেই আরটিজিএস দিয়ে টাকা ট্রান্সফার করুন, এটাই শেষ সুযোগ।
+- speaker: victim
+  text: আমার কাছে অত টাকা নেই।

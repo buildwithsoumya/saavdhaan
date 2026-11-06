@@ -1,0 +1,23 @@
+id: trai_sim_hi
+label: scam
+template: trai_sim
+language: hi-IN
+variant: hi
+needs_native_review: false
+speakers:
+  caller: Yashraj
+  victim: Riyaa
+s5_turn: 4
+turns:
+- speaker: caller
+  text: यह ट्राई की तरफ़ से कॉल है। आपका नंबर दो घंटे में बंद कर दिया जाएगा।
+- speaker: victim
+  text: क्यों बंद होगा?
+- speaker: caller
+  text: आपके नाम के सिम से गैरकानूनी विज्ञापन भेजे गए हैं, साइबर सेल में एफआईआर दर्ज है।
+- speaker: victim
+  text: मैं तो बस अपने बच्चों से बात करती हूँ।
+- speaker: caller
+  text: मामला बंद करने के लिए अपने बैंक डिटेल और आधार नंबर बताइए।
+- speaker: victim
+  text: मुझे समझ नहीं आ रहा।

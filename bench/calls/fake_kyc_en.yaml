@@ -1,0 +1,23 @@
+id: fake_kyc_en
+label: scam
+template: fake_kyc
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Yashraj
+  victim: Lakshmi
+s5_turn: 4
+turns:
+- speaker: caller
+  text: Good morning, I am calling from the RBI KYC team.
+- speaker: victim
+  text: Yes, go ahead.
+- speaker: caller
+  text: Your KYC is incomplete. Your account will be blocked tonight.
+- speaker: victim
+  text: Oh no, my pension comes into that account.
+- speaker: caller
+  text: Immediately tell me your OTP and account number, we will update it today itself.
+- speaker: victim
+  text: One minute, let me get my glasses.

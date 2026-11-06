@@ -1,0 +1,19 @@
+id: police_awareness_en
+label: benign
+template: police_awareness
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Shubham
+  victim: Vasudha
+s5_turn: null
+turns:
+- speaker: caller
+  text: Hello, this is an awareness call from the cyber cell.
+- speaker: caller
+  text: Remember, the police or CBI never arrest anyone over the phone.
+- speaker: caller
+  text: If anyone asks for an OTP, don't give it, and never transfer money. If in doubt, call one nine three zero.
+- speaker: victim
+  text: Thank you, I will be careful.

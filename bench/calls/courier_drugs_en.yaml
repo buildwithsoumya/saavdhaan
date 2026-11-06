@@ -1,0 +1,23 @@
+id: courier_drugs_en
+label: scam
+template: courier_drugs
+language: en-IN
+variant: en
+needs_native_review: false
+speakers:
+  caller: Devansh
+  victim: Tarika
+s5_turn: 4
+turns:
+- speaker: caller
+  text: I am calling from FedEx courier. A parcel in your name has been stopped by customs.
+- speaker: victim
+  text: I did not send any parcel.
+- speaker: caller
+  text: Drugs and fake passports were found inside. The case is with the narcotics department and a case will be registered against you.
+- speaker: victim
+  text: What should I do now?
+- speaker: caller
+  text: Right now send the verification amount and install the AnyDesk app, otherwise police will come to your house.
+- speaker: victim
+  text: Wait, let me think.

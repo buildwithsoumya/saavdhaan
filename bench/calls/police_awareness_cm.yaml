@@ -1,0 +1,19 @@
+id: police_awareness_cm
+label: benign
+template: police_awareness
+language: hi-IN
+variant: cm
+needs_native_review: false
+speakers:
+  caller: Avinash
+  victim: Kalpana
+s5_turn: null
+turns:
+- speaker: caller
+  text: नमस्ते, यह cyber cell की awareness call है।
+- speaker: caller
+  text: याद रखिए, police या CBI कभी phone पर arrest नहीं करती।
+- speaker: caller
+  text: कोई OTP माँगे तो मत दीजिए, और पैसे कभी transfer मत कीजिए। शक हो तो एक नौ तीन शून्य पर call कीजिए।
+- speaker: victim
+  text: जी, धन्यवाद। मैं ध्यान रखूँगी।

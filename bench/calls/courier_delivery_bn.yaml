@@ -1,0 +1,19 @@
+id: courier_delivery_bn
+label: benign
+template: courier_delivery
+language: bn-IN
+variant: bn
+needs_native_review: true
+speakers:
+  caller: Harshad
+  victim: Vasudha
+s5_turn: null
+turns:
+- speaker: caller
+  text: নমস্কার, আমি ডেলিভারি দিতে এসেছি, আপনার জিনিস নিয়ে গেটে দাঁড়িয়ে আছি।
+- speaker: victim
+  text: আচ্ছা, আমার ওষুধ হবে।
+- speaker: caller
+  text: হ্যাঁ, ডেলিভারির জন্য মেসেজে আসা কোডটা বলুন।
+- speaker: victim
+  text: দাঁড়ান, নিচে আসছি।
