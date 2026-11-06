@@ -29,7 +29,8 @@ def aggregate(rows) -> list[dict]:
         g["keyterm_recall"] = statistics.mean(kr) if kr else None
         for L in LEVELS:
             hit = [r for r in scams if _f(r[f"t_l{L}"]) is not None]
-            pre = [r for r in hit if _f(r["s5_end"]) is not None and _f(r[f"t_l{L}"]) <= _f(r["s5_end"])]
+            # strictly before the money ask ends: a flag raised by the ask itself is too late
+            pre = [r for r in hit if _f(r["s5_end"]) is not None and _f(r[f"t_l{L}"]) < _f(r["s5_end"])]
             g[f"recall_l{L}"] = len(hit) / len(scams) if scams else None
             g[f"fa_l{L}"] = sum(_f(r[f"t_l{L}"]) is not None for r in benign) / len(benign) if benign else None
             g[f"ppcr_l{L}"] = len(pre) / len(scams) if scams else None
@@ -112,8 +113,9 @@ th:nth-child(-n+2),td:nth-child(-n+2){text-align:left}
 def make(csv_path: Path) -> Path:
     with open(csv_path, encoding="utf-8") as f:
         groups = aggregate(list(csv.DictReader(f)))
-    best = max((g for g in groups if g["config"] != "text" and g["ppcr_l2"] is not None),
-               key=lambda g: g["ppcr_l2"], default=None)
+    best = max((g for g in groups if g["config"] != "text" and g["ppcr_l2"] is not None
+                and g["fa_l2"] is not None and g["fa_l2"] <= FA_TARGET),
+               key=lambda g: g["ppcr_l2"], default=None)  # a row that flags everything is not "best"
     ref = next((g for g in groups if g["config"] == "text"), None)
     lines = []
     if ref:
@@ -137,7 +139,9 @@ def make(csv_path: Path) -> Path:
 <p>Synthetic scam and hard-negative calls rendered with Timbre v3.0, degraded to phone conditions and streamed
 through Prisma realtime STT. Thresholds are calibrated per row: the lowest alert level with false alarms
 at or under {FA_TARGET:.0%}. WER compares against the script text, so script differences (Devanagari vs Latin
-loanwords, v2.5 verbatim) count as errors.</p>
+loanwords, v2.5 verbatim) count as errors. Keyterm recall uses the same terms the "+kt" configs send as hints.
+Noise SNR is set from whole-file levels before the phone band-pass, so in-band SNR during speech is higher
+than the label.</p>
 {''.join(f'<p class="headline">{html.escape(s)}</p>' for s in lines)}
 {charts}
 <h2>All results</h2>{table(groups)}

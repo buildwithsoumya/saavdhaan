@@ -93,3 +93,30 @@ def test_text_baseline_and_report(tmp_path):
     (g,) = report.aggregate(list(csv.DictReader(path.open(encoding="utf-8"))))
     assert g["recall_l2"] >= 0.9 and g["fa_l2"] <= 0.05 and g["threshold"] in (1, 2)
     assert "SaavdhaanBench" in report.make(path).read_text(encoding="utf-8")
+
+
+def test_flag_raised_by_the_money_ask_itself_is_not_pre_payment(tmp_path):
+    rows = [{"call_id": "a", "label": "scam", "condition": "c", "config": "v3", "wer": 0, "keyterm_recall": "",
+             "t_l1": 5, "t_l2": 9.0, "t_l3": 9.0, "s5_end": 9.0},  # L2 only when the ask ends
+            {"call_id": "b", "label": "scam", "condition": "c", "config": "v3", "wer": 0, "keyterm_recall": "",
+             "t_l1": 2, "t_l2": 4.0, "t_l3": 9.5, "s5_end": 9.0},
+            {"call_id": "n", "label": "benign", "condition": "c", "config": "v3", "wer": 0, "keyterm_recall": "",
+             "t_l1": "", "t_l2": "", "t_l3": "", "s5_end": ""}]
+    (g,) = report.aggregate([{k: str(v) for k, v in r.items()} for r in rows])
+    assert g["ppcr_l2"] == 0.5 and g["recall_l2"] == 1.0
+
+
+def test_results_merge_instead_of_overwrite(monkeypatch, tmp_path):
+    monkeypatch.setattr(run, "CSV_PATH", tmp_path / "results.csv")
+    base = {f: "" for f in run.FIELDS}
+    run.write_rows([base | {"call_id": "a", "condition": "phone", "config": "v3", "speed": "1.0", "wer": "0.5"},
+                    base | {"call_id": "b", "condition": "phone", "config": "v3", "speed": "1.0", "wer": "0.4"}])
+    run.write_rows([base | {"call_id": "a", "condition": "phone", "config": "v3", "speed": "1.0", "wer": "0.1"}])
+    rows = list(csv.DictReader((tmp_path / "results.csv").open(encoding="utf-8")))
+    assert {(r["call_id"], r["wer"]) for r in rows} == {("a", "0.1"), ("b", "0.4")}
+
+
+def test_wer_ignores_unicode_composition():
+    import unicodedata
+    composed = "फ़ीस"
+    assert run.wer(composed, unicodedata.normalize("NFD", composed)) == 0

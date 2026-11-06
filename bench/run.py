@@ -37,7 +37,8 @@ TTS_CREDITS_PER_1K_CHARS = 1.0
 
 
 def normalize(text: str) -> list[str]:
-    text = "".join(" " if unicodedata.category(c).startswith("P") else c for c in text.lower())
+    text = unicodedata.normalize("NFC", text.lower())  # composed and decomposed nukta are the same word
+    text = "".join(" " if unicodedata.category(c).startswith("P") else c for c in text)
     return text.split()
 
 
@@ -133,12 +134,22 @@ def confirm(msg: str, yes: bool) -> bool:
     return yes or input("Proceed? [y/N] ").strip().lower() == "y"
 
 
+def row_key(r) -> tuple:
+    return r["call_id"], r["condition"], r["config"], str(r["speed"])
+
+
 def write_rows(rows):
+    """Merge into results.csv: a later small run replaces only its own rows, never a big earlier run."""
     CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    merged = {}
+    if CSV_PATH.exists():
+        with CSV_PATH.open(encoding="utf-8") as f:
+            merged = {row_key(r): r for r in csv.DictReader(f)}
+    merged.update({row_key(r): r for r in rows})
     with CSV_PATH.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, FIELDS)
         w.writeheader()
-        w.writerows(rows)
+        w.writerows(merged.values())
 
 
 async def main(a):
@@ -177,7 +188,11 @@ async def main(a):
             rate = degrade.rate_of(cond)
             pcm = to_pcm(path.read_bytes(), rate) + b"\0\0" * int(rate * 1.5)
             for cfg in a.configs:
-                got = await transcribe(pcm, rate, cfg, c["language"], a.speed)
+                try:
+                    got = await transcribe(pcm, rate, cfg, c["language"], a.speed)
+                except Exception as e:  # one bad session should not throw away a long run
+                    print(f"{c['id']:<36} {cond:<14} {cfg:<13} FAILED: {e!r}")
+                    continue
                 row = score(c, tl, got) | {"condition": cond, "config": cfg, "speed": a.speed}
                 rows.append(row)
                 print(f"{c['id']:<36} {cond:<14} {cfg:<13} wer={row['wer']:.2f} level={row['max_level']}")
