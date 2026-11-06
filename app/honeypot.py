@@ -166,7 +166,9 @@ def proof(tracker: Tracker) -> list[dict]:
 
 
 def system_prompt(lang: str, evidence: dict, closing: bool = False) -> str:
-    known = "\n".join(f"- {EVIDENCE[k]}: {v}" for k, v in evidence.items() if k in EVIDENCE) or "- nothing yet"
+    def shown(v):  # a value the persona might echo must not carry a number, or safe() turns the reply into a stall
+        return "given (contains a number: never say it)" if DIGITS.search(v) or NUMBER_RUN.search(v) else v
+    known = "\n".join(f"- {EVIDENCE[k]}: {shown(v)}" for k, v in evidence.items() if k in EVIDENCE) or "- nothing yet"
     missing = "\n".join(f"- {label}" for k, label in EVIDENCE.items() if k not in evidence) or "- nothing: keep them talking"
     prompt = SYSTEM.format(language=LANG_NAMES[lang], known=known, missing=missing, fields=", ".join(EVIDENCE),
                            persona=settings.honeypot_persona)
@@ -234,7 +236,11 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
     try:
         async with httpx.AsyncClient(timeout=15, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
-            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence) if caller else asyncio.sleep(0))
+            # return_exceptions: a failed reply must not leave the extraction running against a closed client
+            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence) if caller else asyncio.sleep(0),
+                                              return_exceptions=True)
+        if isinstance(content, BaseException):
+            raise content
         line = safe(parse(content, evidence), code)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
         # a failing model must be visible: otherwise every turn silently becomes a stall line
