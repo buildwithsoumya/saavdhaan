@@ -46,3 +46,15 @@ def test_cert_command_covers_lan_ip(tmp_path):
     cmd = serve.cert_cmd("openssl", "192.168.1.20", tmp_path / "k", tmp_path / "c")
     assert cmd[cmd.index("-addext") + 1] == "subjectAltName=IP:192.168.1.20,DNS:localhost"
     assert "-nodes" in cmd and cmd[cmd.index("-days") + 1] == "30"
+
+
+def test_non_ascii_token_is_rejected_not_crashed(client):
+    assert client.get("/api/voices?token=é").status_code == 401
+
+
+def test_websocket_with_right_token_connects(client, monkeypatch):
+    from app import gnani
+    from tests.test_main import FakeStream, receive_until
+    monkeypatch.setattr(gnani, "SttStream", FakeStream)
+    with client.websocket_connect("/ws?call=ok-1&token=s3cret") as ws:
+        assert receive_until(ws, "ready")["type"] == "ready"

@@ -40,12 +40,17 @@ def test_no_speech_report_still_renders():
 def client(monkeypatch, tmp_path):
     monkeypatch.setattr(main.settings, "data_dir", tmp_path)
 
+    calls = []
+
     async def fake_batch(audio, filename="call.wav", **kw):
-        assert audio[:4] == b"RIFF"
+        assert audio[:3] == b"ID3" and filename.endswith(".mp3")  # compressed to stay under 10 MB
+        calls.append(filename)
         return DOC
 
     monkeypatch.setattr(gnani, "batch_transcribe", fake_batch)
-    return TestClient(main.app)
+    c = TestClient(main.app)
+    c.batch_calls = calls
+    return c
 
 
 def test_report_endpoints(client, tmp_path):
@@ -72,3 +77,39 @@ def test_build_writes_report(client, tmp_path):
         w.writeframes(b"\0\0" * 8000)
     out = asyncio.run(report.build(src))
     assert out.name == "demo.html" and "Caller (suspected)" in out.read_text(encoding="utf-8")
+
+
+def test_existing_report_is_reused_not_rebuilt(client, tmp_path):
+    (tmp_path / "calls").mkdir()
+    with wave.open(str(tmp_path / "calls" / "c-1.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\0\0" * 16000)
+    assert client.post("/api/report/c-1").status_code == 200
+    assert client.post("/api/report/c-1").status_code == 200
+    assert client.batch_calls == ["c-1.mp3"]  # batch credits spent once
+    assert "default-src 'none'" in client.get("/reports/c-1").headers["content-security-policy"]
+
+
+def test_build_failure_is_a_json_502(client, tmp_path, monkeypatch):
+    async def broken(audio, filename="call.wav", **kw):
+        raise gnani.GnaniError("batch down")
+
+    monkeypatch.setattr(gnani, "batch_transcribe", broken)
+    (tmp_path / "calls").mkdir()
+    with wave.open(str(tmp_path / "calls" / "c-2.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\0\0" * 1600)
+    r = client.post("/api/report/c-2")
+    assert r.status_code == 502 and "batch down" in r.json()["detail"]
+
+
+def test_complaint_lists_only_heard_stages_and_escapes_text():
+    doc = {"segments": [{"speaker_id": "<b>1</b>", "start_time": 0, "end_time": 2,
+                         "text": "<script>alert(1)</script> main CBI se hoon"}]}
+    page = report.render_html(report.analyse(doc), "x.wav")
+    assert "claimed authority" in page and "threatened me" not in page
+    assert "<script>" not in page and "<b>1</b>" not in page

@@ -11,8 +11,10 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/reports/")) return;
   // network first, so a redeploy shows up at once; cache when offline
   e.respondWith(fetch(e.request).then((r) => {
-    const copy = r.clone();
-    caches.open(SHELL).then((c) => c.put(e.request, copy));
+    if (r.ok && r.status === 200) { // never cache errors or partial responses
+      const copy = r.clone();
+      caches.open(SHELL).then((c) => c.put(e.request, copy)).catch(() => {});
+    }
     return r;
   }).catch(() => caches.match(e.request)));
 });

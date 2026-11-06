@@ -46,8 +46,20 @@ STALL = {
     "mr": "एक मिनिट, माझा चष्मा सापडत नाही. तुमचं नाव पुन्हा सांगा?",
 }
 
-DIGIT_WORDS = re.compile(r"\d|[०-९০-৯௦-௯೦-೯౦-౯]")
-PAID = re.compile(r"\b(sent|transferred|paid)\b|भेज दिए|भेज दिया|ट्रांसफर कर दिया|पैसे डाल दिए", re.I)
+DIGITS = re.compile(r"\d")  # \d covers every script's digits
+NUMBER_WORDS = [  # spelled-out digits: two or more in a row could read out an OTP
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "shunya", "ek", "do", "teen", "char", "chaar", "paanch", "panch", "chhe", "che", "saat", "aath", "nau",
+    "शून्य", "एक", "दो", "तीन", "चार", "पांच", "पाँच", "छह", "छः", "सात", "आठ", "नौ",
+    "শূন্য", "এক", "দুই", "তিন", "চার", "পাঁচ", "ছয়", "সাত", "আট", "নয়",
+    "பூஜ்ஜியம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது",
+]
+_num = "|".join(sorted(map(re.escape, NUMBER_WORDS), key=len, reverse=True))
+NUMBER_RUN = re.compile(rf"(?<!\w)(?:{_num})(?:[\s,.-]+(?:{_num})){{1,}}(?!\w)", re.I)
+PAID = re.compile(
+    r"\b(sent|transferred|paid|payment (is )?(done|made|complete)|made the payment|done the transfer)\b"
+    r"|bhej (diya|diye|di)|transfer kar (diya|diye)|payment (ho gaya|kar diya)"
+    r"|भेज दिए|भेज दिया|भेज दी|भेज चुका|भेज चुकी|ट्रांसफर कर दिया|पैसे डाल दिए|पेमेंट कर दिया|पेमेंट हो गया", re.I)
 
 
 def lang_of(code: str | None) -> str:
@@ -59,7 +71,7 @@ def safe(reply: str, code: str | None) -> str:
     """Enforce the hard rules; anything doubtful becomes a stalling line."""
     lang = lang_of(code)
     text = re.sub(r"<[^>]*>|[\[\(].*?[\]\)]|\*", "", reply or "").strip()
-    if not text or DIGIT_WORDS.search(text) or PAID.search(text) or len(text) > 220:
+    if not text or DIGITS.search(text) or NUMBER_RUN.search(text) or PAID.search(text) or len(text) > 220:
         return STALL.get(lang, STALL["hi"])
     return text
 
@@ -75,8 +87,10 @@ async def reply(history: list[dict], code: str | None) -> str:
     lang = lang_of(code)
     body = {"model": settings.groq_model, "temperature": 0.7, "max_tokens": 80,
             "messages": [{"role": "system", "content": SYSTEM.format(language=LANG_NAMES[lang])}, *history[-16:]]}
-    async with httpx.AsyncClient(timeout=15, transport=transport) as c:
-        r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
-    if r.status_code >= 400:
+    try:
+        async with httpx.AsyncClient(timeout=15, transport=transport) as c:
+            r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+        r.raise_for_status()
+        return safe(r.json()["choices"][0]["message"]["content"], code)
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
         return STALL.get(lang, STALL["hi"])  # never leave the caller in silence
-    return safe(r.json()["choices"][0]["message"]["content"], code)

@@ -6,6 +6,7 @@ Browsers cannot set WebSocket headers, so the API key lives only here.
 import asyncio
 import hmac
 import json
+import re
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,15 +29,22 @@ class Call:
     tracker: Tracker = field(default_factory=Tracker)
     alerted: int = 0
     pcm: bytearray = field(default_factory=bytearray)
+    socket: WebSocket | None = None  # the browser connection currently serving this call
     honeypot: bool = False
     history: list = field(default_factory=list)  # honeypot chat: caller = user, persona = assistant
+    persona_busy: bool = False
 
 
 CALLS: dict[str, Call] = {}
+MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
+CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
 def token_ok(token: str | None) -> bool:
-    return not settings.app_token or hmac.compare_digest(token or "", settings.app_token)
+    if not settings.app_token:
+        return True
+    # bytes compare: compare_digest rejects non-ASCII str, which would turn a junk token into a 500
+    return hmac.compare_digest((token or "").encode(), settings.app_token.encode())
 
 
 @app.middleware("http")
@@ -62,62 +70,86 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 
 @app.websocket("/ws")
 async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = ""):
+    await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
     if not token_ok(token):
         await ws.close(code=4401)
         return
-    await ws.accept()
-    state = CALLS.setdefault(call, Call())
+    if not CALL_ID.fullmatch(call):  # the id becomes a file name for recordings
+        await ws.close(code=1008)
+        return
+    state = CALLS.pop(call, None) or Call()
+    CALLS[call] = state  # most recently used last
+    while len(CALLS) > MAX_CALLS:
+        CALLS.pop(next(iter(CALLS)))
+    if state.socket is not None:  # a reconnect while the old socket is half-dead: one stream per call
+        try:
+            await state.socket.close()
+        except Exception:
+            pass
+    state.socket = ws
     send_lock = asyncio.Lock()
     alert_tasks = set()
 
     async def send(payload):
-        async with send_lock:
-            if isinstance(payload, bytes):
-                await ws.send_bytes(payload)
-            else:
-                await ws.send_text(json.dumps(payload, ensure_ascii=False))
-
-    say_lock = asyncio.Lock()
+        """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
+        try:
+            async with send_lock:
+                if isinstance(payload, bytes):
+                    await ws.send_bytes(payload)
+                else:
+                    await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
 
     def spawn(coro):
         task = asyncio.create_task(coro)
         alert_tasks.add(task)
         task.add_done_callback(alert_tasks.discard)
 
-    async def set_honeypot(on: bool, reason: str):
+    async def set_honeypot(on: bool, reason: str, lang=None):
+        if state.honeypot == on:
+            return
         state.honeypot = on
-        await send({"type": "honeypot", "on": on, "reason": reason})
-        if not on and state.history:
+        if not on and state.history:  # evidence log first, the browser may already be gone
             log = Path(settings.data_dir) / "honeypot" / f"{call}.json"
             log.parent.mkdir(parents=True, exist_ok=True)
             log.write_text(json.dumps(state.history, ensure_ascii=False, indent=1), encoding="utf-8")
+        await send({"type": "honeypot", "on": on, "reason": reason})
+        level = state.tracker.level()
+        if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
+            state.alerted = level
+            spawn(play_alert(level, lang))
 
-    async def persona_reply(text, lang):
-        """Answer the caller in the persona voice; one reply at a time."""
-        async with say_lock:
-            if not state.honeypot:
-                return
-            state.history.append({"role": "user", "content": text})
-            line = await honeypot.reply(state.history, lang)
-            state.history.append({"role": "assistant", "content": line})
-            try:
-                audio = await gnani.tts(line, voice=settings.honeypot_voice,
-                                        language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
-            except gnani.GnaniError as e:
-                await send({"type": "error", "message": f"honeypot voice failed: {e}"})
-                return
-            await send({"type": "say", "text": line})
-            await send(audio)
-            exchanges = sum(m["role"] == "assistant" for m in state.history)
-            if honeypot.evidence_complete(state.tracker, exchanges):
-                await set_honeypot(False, "evidence")
+    async def persona_loop(lang):
+        """Answer the caller one reply at a time, always to everything said since the last reply."""
+        state.persona_busy = True
+        try:
+            while state.honeypot and state.history and state.history[-1]["role"] == "user":
+                line = await honeypot.reply(state.history, lang)
+                if not state.honeypot:
+                    return
+                state.history.append({"role": "assistant", "content": line})
+                try:
+                    audio = await gnani.tts(line, voice=settings.honeypot_voice,
+                                            language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
+                except Exception as e:
+                    await send({"type": "error", "message": f"honeypot voice failed: {e}"})
+                    continue
+                if not state.honeypot:
+                    return
+                await send({"type": "say", "text": line})
+                await send(audio)
+                exchanges = sum(m["role"] == "assistant" for m in state.history)
+                if honeypot.evidence_complete(state.tracker, exchanges):
+                    await set_honeypot(False, "evidence", lang)
+        finally:
+            state.persona_busy = False
 
     async def play_alert(level, lang):
-        if state.honeypot:
-            return  # the caller would hear it; the screen still shows the level
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
-        except gnani.GnaniError as e:
+        except Exception as e:  # network, cache or synthesis failure: let the next transcript retry
+            state.alerted = min(state.alerted, level - 1)
             await send({"type": "error", "message": f"alert audio failed: {e}"})
             return
         await send({"type": "alert", "level": level, "text": alerts.alert_text(level, lang)})
@@ -136,11 +168,16 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             if state.tracker.take_follow_signal():
                 await stream.update_keyterms(keyterms("extraction"))
                 await send({"type": "info", "message": "keyterms switched to extraction stage"})
-            if level > state.alerted:
+            if level > state.alerted and not state.honeypot:  # the caller would hear a spoken alert
                 state.alerted = level
                 spawn(play_alert(level, lang))
             if state.honeypot:
-                spawn(persona_reply(msg["text"], lang))
+                if state.history and state.history[-1]["role"] == "user":
+                    state.history[-1]["content"] += " " + msg["text"]  # caller kept talking: one turn
+                else:
+                    state.history.append({"role": "user", "content": msg["text"]})
+                if not state.persona_busy:
+                    spawn(persona_loop(lang))
         elif kind == "error":
             await send({"type": "error", "message": msg.get("message", "STT error")})
 
@@ -162,7 +199,10 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 if record:
                     state.pcm += msg["bytes"]
             elif msg.get("text"):
-                cmd = json.loads(msg["text"])
+                try:
+                    cmd = json.loads(msg["text"])
+                except ValueError:
+                    continue
                 if cmd.get("type") == "stop":
                     break
                 if cmd.get("type") == "honeypot":
@@ -177,17 +217,20 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     except WebSocketDisconnect:
         pass
     finally:
-        if state.honeypot:
-            await set_honeypot(False, "ended")
+        for t in list(alert_tasks):
+            t.cancel()
+        await set_honeypot(False, "ended")
+        if state.socket is ws:
+            state.socket = None
+        if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops
+            await asyncio.to_thread(save_recording, call, bytes(state.pcm))
         await stream.close()
-        if record and state.pcm:
-            save_recording(call, bytes(state.pcm))
 
 
 @app.post("/api/voices")
 async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False)):
     try:
-        return await enrol.enrol(await audio.read(), name, consent)
+        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent)
     except enrol.EnrolError as e:
         raise HTTPException(400, str(e))
     except gnani.GnaniError as e:
@@ -206,21 +249,32 @@ def delete_voice(voice_id: str):
     return {"deleted": voice_id}
 
 
+REPORTS_IN_FLIGHT: set[str] = set()
+
+
 def _call_file(folder: str, call_id: str, ext: str) -> Path:
-    if not call_id.replace("-", "").isalnum():
+    if not CALL_ID.fullmatch(call_id):
         raise HTTPException(400, "bad call id")
     return Path(settings.data_dir) / folder / f"{call_id}.{ext}"
 
 
 @app.post("/api/report/{call_id}")
 async def make_report(call_id: str):
+    out = _call_file("reports", call_id, "html")
     wav = _call_file("calls", call_id, "wav")
+    if out.exists():  # batch STT costs credits: one report per call
+        return {"url": f"/reports/{call_id}"}
     if not wav.exists():
         raise HTTPException(404, "this call was not recorded (recording is opt-in)")
+    if call_id in REPORTS_IN_FLIGHT:
+        raise HTTPException(409, "the report is already being made")
+    REPORTS_IN_FLIGHT.add(call_id)
     try:
         await report.build(wav)
-    except gnani.GnaniError as e:
-        raise HTTPException(502, f"transcription failed: {e}")
+    except Exception as e:  # ffmpeg, network, batch failure: always a readable JSON error
+        raise HTTPException(502, f"report failed: {e}")
+    finally:
+        REPORTS_IN_FLIGHT.discard(call_id)
     return {"url": f"/reports/{call_id}"}
 
 
@@ -229,7 +283,8 @@ def get_report(call_id: str):
     path = _call_file("reports", call_id, "html")
     if not path.exists():
         raise HTTPException(404, "no report yet")
-    return FileResponse(path)
+    return FileResponse(path, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                                       "Referrer-Policy": "no-referrer"})
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

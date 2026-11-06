@@ -18,7 +18,8 @@ def _f(v):
 def aggregate(rows) -> list[dict]:
     groups = defaultdict(list)
     for r in rows:
-        groups[(r["condition"], r["config"])].append(r)
+        speed = r.get("speed") or "1.0"  # runs at other pacing speeds are reported as separate rows
+        groups[(r["condition"], r["config"] + ("" if speed == "1.0" else f" x{speed}"))].append(r)
     out = []
     for (cond, cfg), rs in groups.items():
         scams = [r for r in rs if r["label"] == "scam"]
@@ -29,7 +30,8 @@ def aggregate(rows) -> list[dict]:
         g["keyterm_recall"] = statistics.mean(kr) if kr else None
         for L in LEVELS:
             hit = [r for r in scams if _f(r[f"t_l{L}"]) is not None]
-            pre = [r for r in hit if _f(r["s5_end"]) is not None and _f(r[f"t_l{L}"]) <= _f(r["s5_end"])]
+            # strictly before the money ask ends: a flag raised by the ask itself is too late
+            pre = [r for r in hit if _f(r["s5_end"]) is not None and _f(r[f"t_l{L}"]) < _f(r["s5_end"])]
             g[f"recall_l{L}"] = len(hit) / len(scams) if scams else None
             g[f"fa_l{L}"] = sum(_f(r[f"t_l{L}"]) is not None for r in benign) / len(benign) if benign else None
             g[f"ppcr_l{L}"] = len(pre) / len(scams) if scams else None
@@ -38,7 +40,7 @@ def aggregate(rows) -> list[dict]:
         g["threshold"] = min(ok) if ok else None
         out.append(g)
     order = {c: i for i, c in enumerate(["reference", "clean", "phone", "phone_snr10", "phone_snr5", "phone_dropout"])}
-    return sorted(out, key=lambda g: (order.get(g["condition"], 99), list(COLORS).index(g["config"])))
+    return sorted(out, key=lambda g: (order.get(g["condition"], 99), list(COLORS).index(g["config"].split(" ")[0])))
 
 
 def pct(v):
@@ -60,7 +62,7 @@ def bars(groups, metric, title, fmt=pct, maxv=1.0) -> str:
             tip = f"{cond} · {g['config']}: {fmt(g[metric])}"
             parts.append(
                 f'<g><title>{html.escape(tip)}</title>'
-                f'<rect x="{label_w}" y="{y + 3}" width="{w:.1f}" height="{row_h - 6}" rx="4" fill="{COLORS[g["config"]]}"/>'
+                f'<rect x="{label_w}" y="{y + 3}" width="{w:.1f}" height="{row_h - 6}" rx="4" fill="{COLORS[g["config"].split(" ")[0]]}"/>'
                 f'<text x="{label_w + w + 6:.1f}" y="{y + 15}" class="val">{fmt(g[metric])}</text></g>')
             y += row_h
         y += 10
@@ -72,7 +74,7 @@ def bars(groups, metric, title, fmt=pct, maxv=1.0) -> str:
 def legend(groups) -> str:
     cfgs = list(dict.fromkeys(g["config"] for g in groups))
     return '<ul class="legend">' + "".join(
-        f'<li><span style="background:{COLORS[c]}"></span>{html.escape(c)}</li>' for c in cfgs) + "</ul>"
+        f'<li><span style="background:{COLORS[c.split(" ")[0]]}"></span>{html.escape(c)}</li>' for c in cfgs) + "</ul>"
 
 
 def table(groups) -> str:
@@ -112,8 +114,9 @@ th:nth-child(-n+2),td:nth-child(-n+2){text-align:left}
 def make(csv_path: Path) -> Path:
     with open(csv_path, encoding="utf-8") as f:
         groups = aggregate(list(csv.DictReader(f)))
-    best = max((g for g in groups if g["config"] != "text" and g["ppcr_l2"] is not None),
-               key=lambda g: g["ppcr_l2"], default=None)
+    best = max((g for g in groups if g["config"] != "text" and g["ppcr_l2"] is not None
+                and g["fa_l2"] is not None and g["fa_l2"] <= FA_TARGET),
+               key=lambda g: g["ppcr_l2"], default=None)  # a row that flags everything is not "best"
     ref = next((g for g in groups if g["config"] == "text"), None)
     lines = []
     if ref:
@@ -137,7 +140,9 @@ def make(csv_path: Path) -> Path:
 <p>Synthetic scam and hard-negative calls rendered with Timbre v3.0, degraded to phone conditions and streamed
 through Prisma realtime STT. Thresholds are calibrated per row: the lowest alert level with false alarms
 at or under {FA_TARGET:.0%}. WER compares against the script text, so script differences (Devanagari vs Latin
-loanwords, v2.5 verbatim) count as errors.</p>
+loanwords, v2.5 verbatim) count as errors. Keyterm recall uses the same terms the "+kt" configs send as hints.
+Noise SNR is set from whole-file levels before the phone band-pass, so in-band SNR during speech is higher
+than the label.</p>
 {''.join(f'<p class="headline">{html.escape(s)}</p>' for s in lines)}
 {charts}
 <h2>All results</h2>{table(groups)}

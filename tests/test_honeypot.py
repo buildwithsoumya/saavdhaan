@@ -100,7 +100,7 @@ def test_honeypot_flow(client, tmp_path):
         done = receive_until(ws, "honeypot")
         assert done == {"type": "honeypot", "on": False, "reason": "evidence"}
         ws.send_text(json.dumps({"type": "stop"}))
-    assert client.alert_calls == [2]  # the L3 alert was held back while the persona talked
+    assert client.alert_calls == [2, 3]  # L3 held back while the persona talked, played when it stopped
     assert {v for _, v, _ in client.tts_calls} == {main.settings.honeypot_voice}
     log = json.loads((tmp_path / "honeypot" / "hp1.json").read_text(encoding="utf-8"))
     assert [m["role"] for m in log] == ["user", "assistant"] * 4
@@ -112,3 +112,47 @@ def test_honeypot_needs_groq_key(client, monkeypatch):
         receive_until(ws, "ready")
         ws.send_text(json.dumps({"type": "honeypot", "on": True}))
         assert "GROQ_API_KEY" in receive_until(ws, "error")["message"]
+
+
+def test_safe_blocks_spelled_out_numbers_and_more_payment_claims():
+    for line in ("four eight two one", "it is nine, eight, seven", "चार आठ दो एक", "ek do teen char",
+                 "I have made the payment", "मैंने भेज दिया है", "haan bhej diya beta"):
+        assert honeypot.safe(line, "hi-IN") == honeypot.STALL["hi"], line
+    assert honeypot.safe("One minute, which bank was it?", "en-IN") == "One minute, which bank was it?"
+
+
+def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
+    def timeout(req):
+        raise httpx.ReadTimeout("slow", request=req)
+
+    monkeypatch.setattr(honeypot.settings, "groq_api_key", "gk")
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(timeout))
+    assert asyncio.run(honeypot.reply([], "ta-IN")) == honeypot.STALL["ta"]
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(200, json={"choices": []})))
+    assert asyncio.run(honeypot.reply([], "en-IN")) == honeypot.STALL["en"]
+
+
+def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
+    gate = asyncio.Event()
+
+    async def slow_reply(history, code):
+        await gate.wait()
+        return "too late"
+
+    monkeypatch.setattr(honeypot, "reply", slow_reply)
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana"), said("OTP batao")]
+    with client.websocket_connect("/ws?call=hp3") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        receive_until(ws, "audio")
+        ws.send_text(json.dumps({"type": "honeypot", "on": True}))
+        receive_until(ws, "honeypot")
+        ws.send_bytes(b"\0" * 1024)
+        receive_until(ws, "transcript")
+        ws.send_text(json.dumps({"type": "honeypot", "on": False}))
+        assert receive_until(ws, "honeypot")["on"] is False
+        gate.set()
+        ws.send_text(json.dumps({"type": "stop"}))
+    assert not client.tts_calls  # the stale reply was never spoken

@@ -31,12 +31,12 @@
         <span class="stamp-level" id="status-level">L0</span>
       </div>
       <p class="advice" id="advice"><span lang="hi">बात जारी रखें।</span> <span lang="en">You can keep talking.</span></p>
-      <p class="conn" id="conn">सुन नहीं रहा · Not listening</p>
-      <p class="report-row" id="report-row" hidden>
-        <button id="report" class="btn" type="button">कॉल की रिपोर्ट बनाएँ · Make call report</button>
-        <a id="report-link" href="#" target="_blank" rel="noopener" hidden>रिपोर्ट खोलें · Open report</a>
-      </p>
     </section>
+    <p class="conn" id="conn" role="status">सुन नहीं रहा · Not listening</p>
+    <p class="report-row" id="report-row" hidden>
+      <button id="report" class="btn" type="button">कॉल की रिपोर्ट बनाएँ · Make call report</button>
+      <a id="report-link" href="#" target="_blank" rel="noopener noreferrer" hidden>रिपोर्ट खोलें · Open report</a>
+    </p>
 
     <section class="honeypot" id="honeypot" hidden aria-live="polite">
       <div id="hp-offer">
@@ -65,7 +65,7 @@
 
     <section class="letter" aria-label="Live transcript">
       <h2 class="section-title">बातचीत · What the caller said</h2>
-      <ol class="lines" id="lines" aria-live="polite">
+      <ol class="lines" id="lines">
         <li class="empty">सुनना शुरू करने पर बातचीत यहाँ दिखेगी · The call appears here once listening starts.</li>
       </ol>
     </section>

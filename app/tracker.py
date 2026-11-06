@@ -3,6 +3,7 @@
 Every scam call walks the same chain: S1 authority, S2 fear, S3 isolation,
 S4 urgency, S5 extraction. Each stage counts once, within a rolling window.
 """
+import functools
 import re
 import time
 from dataclasses import asdict, dataclass
@@ -16,7 +17,7 @@ STAGE_NAMES = {"S1": "Authority", "S2": "Fear", "S3": "Isolation", "S4": "Urgenc
 LEVEL_NAMES = {0: "Safe", 1: "Caution", 2: "Saavdhaan", 3: "Stop"}
 WINDOW_S = 600
 NEGATION_SPAN = 6  # tokens either side of an S5 phrase searched for a negation
-PUNCT_BREAK = "[.?!।॥;|\n]"  # not commas: "if anyone asks for an OTP, don't give it"
+PUNCT_BREAK = "[.?!।॥;:|\n]"  # not commas: "if anyone asks for an OTP, don't give it"
 
 
 @dataclass
@@ -29,9 +30,14 @@ class Hit:
 
 
 def _pattern(phrase: str) -> str:
-    """Latin phrases match whole words; Indic phrases match as substrings (suffixes)."""
+    """Latin phrases match whole Latin words (also when glued to Indic script, as in
+    "OTPबताओ"); Indic phrases match as substrings, so suffixes still match."""
     p = re.escape(phrase.lower())
-    return rf"(?<!\w){p}(?!\w)" if phrase.isascii() else p
+    return rf"(?<![a-z0-9_]){p}(?![a-z0-9_])" if phrase.isascii() else p
+
+
+def normalize(text: str) -> str:
+    return text.lower().replace("\u2019", "'").replace("\u2018", "'")
 
 
 class Lexicon:
@@ -46,6 +52,8 @@ class Lexicon:
         breaks = sorted({w.lower() for b in blocks for w in b.get("clause_breaks", [])}, key=len, reverse=True)
         self.clause_break = re.compile("|".join([PUNCT_BREAK, *map(_pattern, breaks)]))
         self.regex = {s: re.compile("|".join(map(_pattern, ps))) for s, ps in self.phrases.items()}
+        benign = sorted({w.lower() for b in blocks for w in b.get("benign", [])}, key=len, reverse=True)
+        self.benign = re.compile("|".join(map(_pattern, benign)))
 
     def is_negation(self, token: str) -> bool:
         token = token.strip(".,!?\"'()")
@@ -61,7 +69,7 @@ class Lexicon:
 
     def match(self, text: str):
         """Yield (stage, phrase, negated) for every stage phrase in `text`."""
-        low = text.lower()
+        low = self.benign.sub(lambda m: " " * len(m.group(0)), normalize(text))  # keeps offsets
         for stage, rx in self.regex.items():
             for m in rx.finditer(low):
                 yield stage, m.group(0), stage == "S5" and self.negated(low, m.start(), m.end())
@@ -95,6 +103,9 @@ class Tracker:
             (self.ignored if negated else self.hits).append(hit)
             if not negated:
                 new.append(hit)
+        cutoff = t - self.window_s
+        self.hits = [h for h in self.hits if h.t >= cutoff]
+        self.ignored = self.ignored[-50:]
         return new
 
     def active(self, now: float | None = None) -> dict[str, list[Hit]]:
@@ -119,7 +130,8 @@ class Tracker:
         return {
             "level": self.level(now),
             "level_name": LEVEL_NAMES[self.level(now)],
-            "stages": {s: [asdict(h) for h in hs] for s, hs in sorted(act.items())},
+            # one entry per phrase (its latest hit), so repeats don't flood the screen
+            "stages": {s: [asdict(h) for h in {h.phrase: h for h in hs}.values()] for s, hs in sorted(act.items())},
             "ignored": [asdict(h) for h in self.ignored[-10:]],
         }
 
@@ -132,5 +144,6 @@ class Tracker:
         return False
 
 
+@functools.cache
 def keyterms(kind="base") -> list[str]:
     return yaml.safe_load((DATA / "keyterms.yaml").read_text(encoding="utf-8"))[kind][:200]
