@@ -24,8 +24,8 @@ def alert_text(level: int, code: str | None) -> str:
     return m[f"L{level}"].format(helpline=m["helpline"])
 
 
-def _cached(key: str) -> Path:
-    d = Path(settings.data_dir) / "alerts"
+def _cached(key: str, folder: Path | None = None) -> Path:
+    d = folder or Path(settings.data_dir) / "alerts"
     d.mkdir(parents=True, exist_ok=True)
     return d / (hashlib.sha1(key.encode()).hexdigest()[:16] + ".wav")
 
@@ -37,10 +37,12 @@ def strip_tags(text: str) -> str:
     return re.sub(r"<[^>]+>\s*", "", text).strip()
 
 
-async def _cache(key: str, make) -> bytes:
-    path = _cached(key)
+async def _cache(key: str, make, folder: Path | None = None) -> bytes:
+    path = _cached(key, folder)
     if not path.exists():
-        path.write_bytes(await make())
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(await make())
+        tmp.replace(path)  # never leave a half-written file in the cache
     return path.read_bytes()
 
 
@@ -61,8 +63,9 @@ async def alert_audio(level: int, code: str | None, voice: str | None = None) ->
         if level == 2 and emb:
             plain = strip_tags(text)
             try:
-                return await _cache(f"vc|{emb['id']}|{plain}", lambda: gnani.vc_tts(plain, emb["embedding"]))
-            except gnani.GnaniError:
+                return await _cache(f"vc|{plain}", lambda: gnani.vc_tts(plain, emb["embedding"]),
+                                    folder=enrol.cache_dir(emb["id"]))
+            except Exception:  # any voice-clone failure: the warning still goes out in Timbre
                 pass
         voice = settings.alert_voice
     return await _cache(f"timbre-v3.0|{voice}|{text}",

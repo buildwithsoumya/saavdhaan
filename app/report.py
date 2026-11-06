@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from app import gnani
-from app.audio import to_wav
+from app.audio import ffmpeg
 from app.config import settings
 from app.tracker import LEVEL_NAMES, STAGE_NAMES, Tracker
 
@@ -30,7 +30,7 @@ def analyse(doc: dict) -> dict:
         text = (seg.get("text") or "").strip()
         if not text:
             continue
-        t, spk = float(seg.get("end_time") or 0), seg.get("speaker_id")
+        t, spk = float(seg.get("start_time") or 0), seg.get("speaker_id")
         hits = tracker.feed(text, t)
         per_speaker[spk] = per_speaker.get(spk, 0) + len(hits)
         lines.append({"t": float(seg.get("start_time") or 0), "speaker": spk, "text": text,
@@ -44,16 +44,18 @@ def analyse(doc: dict) -> dict:
 
 def complaint(a: dict) -> str:
     phrases = {s: sorted({h.phrase for h in a["tracker"].hits if h.stage == s}) for s in STAGE_NAMES}
-    said = lambda s: ", ".join(f"“{p}”" for p in phrases[s][:4]) or "—"
+    what = {"S1": "claimed authority", "S2": "threatened me", "S3": "told me to keep it secret or stay on the line",
+            "S4": "pressed for urgency", "S5": "asked for money or details"}
+    heard = [f"{what[s]} ({', '.join(f'“{p}”' for p in phrases[s][:4])})" for s in STAGE_NAMES if phrases[s]]
+    behaviour = ("The caller " + "; ".join(heard) + ".") if heard else \
+        "[Describe what the caller said and asked for.]"
     return "\n".join([
         "To: National Cyber Crime Reporting Portal (helpline 1930) / Chakshu, Sanchar Saathi",
         "",
         f"I, {PLACEHOLDERS[0]}, contact number {PLACEHOLDERS[1]}, report a suspected fraud call received on "
         f"{PLACEHOLDERS[2]} from {PLACEHOLDERS[3]}.",
         "",
-        f"The caller claimed authority ({said('S1')}), threatened me ({said('S2')}), "
-        f"told me to keep it secret or stay on the line ({said('S3')}), pressed for urgency ({said('S4')}) "
-        f"and asked for money or details ({said('S5')}).",
+        behaviour,
         "",
         f"Loss: {PLACEHOLDERS[4]}.",
         "A transcript with timestamps is attached.",
@@ -76,7 +78,7 @@ pre{white-space:pre-wrap;padding:14px;border:2px dashed var(--soft);border-radiu
 
 
 def render_html(a: dict, title: str) -> str:
-    who = lambda spk: "Caller (suspected)" if spk == a["caller"] else f"Speaker {spk}"
+    who = lambda spk: "Caller (suspected)" if spk == a["caller"] else f"Speaker {html.escape(str(spk))}"
     stages = "".join(
         f'<li><span class="t">{mmss(h.t)}</span><span class="who">{s} {STAGE_NAMES[s]}</span>'
         f'“{html.escape(h.phrase)}” <span class="note">in: {html.escape(h.text[:120])}</span></li>'
@@ -102,11 +104,18 @@ Speaker labels come from automatic speaker separation and may be wrong.</p>
 </main></body></html>"""
 
 
+def to_mp3(audio: bytes) -> bytes:
+    """Speech MP3 (~0.25 MB/min) keeps hour-long calls under the 10 MB direct-upload limit."""
+    return ffmpeg(["-ac", "1", "-ar", "16000", "-b:a", "32k", "-f", "mp3"], audio)
+
+
 async def build(audio_path: Path) -> Path:
-    doc = await gnani.batch_transcribe(to_wav(audio_path.read_bytes()), audio_path.stem + ".wav")
+    # ffmpeg and file I/O run in threads so a live call on the same server never stalls
+    mp3 = await asyncio.to_thread(lambda: to_mp3(audio_path.read_bytes()))
+    doc = await gnani.batch_transcribe(mp3, audio_path.stem + ".mp3")
     out = Path(settings.data_dir) / "reports" / f"{audio_path.stem}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_html(analyse(doc), audio_path.name), encoding="utf-8")
+    await asyncio.to_thread(out.write_text, render_html(analyse(doc), audio_path.name), encoding="utf-8")
     return out
 
 
