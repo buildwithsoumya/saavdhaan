@@ -113,7 +113,7 @@ async function saveVoice() {
     setClip(null, "कोई रिकॉर्डिंग नहीं · No recording yet");
     await loadVoices();
   } catch (err) {
-    $("enrol-status").textContent = `नहीं हो पाया · Could not add voice: ${err.message}`;
+    $("enrol-status").textContent = `नहीं हो पाया · Could not add voice: ${reason(err)}`;
   } finally {
     $("enrol-save").disabled = !(clip && $("enrol-consent").checked);
   }
@@ -200,6 +200,10 @@ function addLine(text, lang, persona = false) {
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const conn = (t) => ($("conn").textContent = t);
+// fetch() rejects with a TypeError ("Failed to fetch") only when the server can't be reached at all
+const reason = (err) => err instanceof TypeError
+  ? "लैपटॉप से नहीं जुड़ पाया · Cannot reach the laptop. Is python -m app.serve running and the phone on the same Wi-Fi?"
+  : err.message;
 
 // ---- alerts ---------------------------------------------------------------
 function playAlert(bytes) {
@@ -398,7 +402,7 @@ async function makeReport() {
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "दोबारा कोशिश करें · Try again";
-    conn(`रिपोर्ट नहीं बनी · Report failed: ${err.message}`);
+    conn(`रिपोर्ट नहीं बनी · Report failed: ${reason(err)}`);
   }
 }
 
