@@ -292,7 +292,12 @@ async function toggle() {
     ws?.close();
     stopAudio();
     conn("सुन नहीं रहा · Not listening");
+    $("report-row").hidden = store.get("record", "0") !== "1";
+    $("report-link").hidden = true;
+    $("report").disabled = false;
+    $("report").textContent = "कॉल की रिपोर्ट बनाएँ · Make call report";
   } else {
+    $("report-row").hidden = true;
     try {
       await startAudio();
     } catch (err) {
@@ -311,7 +316,31 @@ async function toggle() {
   $("listen-label").textContent = listening ? "सुनना बंद करें · Stop listening" : "सुनना शुरू करें · Start listening";
 }
 
+async function makeReport() {
+  const btn = $("report");
+  btn.disabled = true;
+  btn.textContent = "रिपोर्ट बन रही है (1–2 मिनट)… · Making report…";
+  try {
+    let r;
+    for (let attempt = 0; attempt < 3; attempt++) { // the recording is saved as the call closes
+      r = await fetch(`/api/report/${callId}`, { method: "POST" });
+      if (r.status !== 404) break;
+      await new Promise((ok) => setTimeout(ok, 1500));
+    }
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    $("report-link").href = body.url;
+    $("report-link").hidden = false;
+    btn.textContent = "रिपोर्ट तैयार · Report ready";
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "दोबारा कोशिश करें · Try again";
+    conn(`रिपोर्ट नहीं बनी · Report failed: ${err.message}`);
+  }
+}
+
 initSettings();
+$("report").onclick = makeReport;
 renderStages(null);
 renderLevel(0);
 $("listen").onclick = toggle;

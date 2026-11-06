@@ -11,9 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, enrol, gnani
+from app import alerts, enrol, gnani, report
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -138,9 +139,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
             t.cancel()
         if state.socket is ws:
             state.socket = None
+        if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops
+            await asyncio.to_thread(save_recording, call, bytes(state.pcm))
         await stream.close()
-        if record and state.pcm:
-            save_recording(call, bytes(state.pcm))
 
 
 @app.post("/api/voices")
@@ -163,6 +164,44 @@ def delete_voice(voice_id: str):
     if not enrol.delete(voice_id):
         raise HTTPException(404, "no such voice")
     return {"deleted": voice_id}
+
+
+REPORTS_IN_FLIGHT: set[str] = set()
+
+
+def _call_file(folder: str, call_id: str, ext: str) -> Path:
+    if not CALL_ID.fullmatch(call_id):
+        raise HTTPException(400, "bad call id")
+    return Path(settings.data_dir) / folder / f"{call_id}.{ext}"
+
+
+@app.post("/api/report/{call_id}")
+async def make_report(call_id: str):
+    out = _call_file("reports", call_id, "html")
+    wav = _call_file("calls", call_id, "wav")
+    if out.exists():  # batch STT costs credits: one report per call
+        return {"url": f"/reports/{call_id}"}
+    if not wav.exists():
+        raise HTTPException(404, "this call was not recorded (recording is opt-in)")
+    if call_id in REPORTS_IN_FLIGHT:
+        raise HTTPException(409, "the report is already being made")
+    REPORTS_IN_FLIGHT.add(call_id)
+    try:
+        await report.build(wav)
+    except Exception as e:  # ffmpeg, network, batch failure: always a readable JSON error
+        raise HTTPException(502, f"report failed: {e}")
+    finally:
+        REPORTS_IN_FLIGHT.discard(call_id)
+    return {"url": f"/reports/{call_id}"}
+
+
+@app.get("/reports/{call_id}")
+def get_report(call_id: str):
+    path = _call_file("reports", call_id, "html")
+    if not path.exists():
+        raise HTTPException(404, "no report yet")
+    return FileResponse(path, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                                       "Referrer-Policy": "no-referrer"})
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
