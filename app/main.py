@@ -71,7 +71,8 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 
 
 @app.websocket("/ws")
-async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = "", hpvoice: str = ""):
+async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = "", hpvoice: str = "",
+                   silent: int = 0):
     await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
     if not token_ok(token):
         await ws.close(code=4401)
@@ -123,7 +124,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         level = state.tracker.level()
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
             state.alerted = level
-            spawn(play_alert(level, lang))
+            spawn(warn(level, lang))
 
     async def persona_audio(line, lang):
         """The elder's own cloned voice when they enrolled it with honeypot consent, else the neutral persona."""
@@ -169,6 +170,12 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         finally:
             state.persona_busy = False
 
+    async def warn(level, lang):
+        if silent:  # honeypot allowed: the caller must not hear a warning, so screen only
+            await send({"type": "alert", "level": level, "text": alerts.alert_text(level, lang), "silent": True})
+        else:
+            await play_alert(level, lang)
+
     async def play_alert(level, lang):
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
@@ -194,7 +201,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 await send({"type": "info", "message": "keyterms switched to extraction stage"})
             if level > state.alerted and not state.honeypot:  # the caller would hear a spoken alert
                 state.alerted = level
-                spawn(play_alert(level, lang))
+                spawn(warn(level, lang))
             if state.honeypot:
                 if state.history and state.history[-1]["role"] == "user":
                     state.history[-1]["content"] += " " + msg["text"]  # caller kept talking: one turn

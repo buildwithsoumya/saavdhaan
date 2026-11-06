@@ -322,7 +322,8 @@ function stopAudio() {
 // ---- socket ---------------------------------------------------------------
 function connect() {
   const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
-    token: store.get("token", ""), hpvoice: store.get("hp-voice", "") });
+    token: store.get("token", ""), hpvoice: store.get("hp-voice", ""),
+    silent: store.get("hp-allow", "0") }); // honeypot allowed: warnings on screen only, never spoken into the call
   const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
   ws = sock;
   sock.binaryType = "arraybuffer";
@@ -337,7 +338,7 @@ function connect() {
       if (m.lang) $("lang").textContent = LANGS[m.lang.split("-")[0]] || m.lang;
       renderStages(m.explain);
       renderLevel(m.explain.level);
-    } else if (m.type === "alert") alertPending = true;
+    } else if (m.type === "alert" && !m.silent) alertPending = true;
     else if (m.type === "say") addLine(m.text, null, true);
     else if (m.type === "honeypot") {
       honeypotOn = m.on;
