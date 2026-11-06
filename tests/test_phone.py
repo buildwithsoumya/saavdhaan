@@ -48,6 +48,17 @@ def test_cert_command_covers_lan_ip(tmp_path):
     assert "-nodes" in cmd and cmd[cmd.index("-days") + 1] == "30"
 
 
+def test_fingerprint_matches_android_format(tmp_path):
+    import hashlib
+    import ssl
+    der = b"not really a certificate, only its bytes are hashed"
+    cert = tmp_path / "c.crt"
+    cert.write_text(ssl.DER_cert_to_PEM_cert(der))
+    fp = serve.fingerprint(cert)
+    assert fp == ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())  # MainActivity.fingerprint()
+    assert len(fp.split(":")) == 32 and fp == fp.upper()
+
+
 def test_non_ascii_token_is_rejected_not_crashed(client):
     assert client.get("/api/voices?token=é").status_code == 401
 

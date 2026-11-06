@@ -11,8 +11,10 @@ Listening works after "proceed". Chrome does not run service workers on a page
 with a certificate warning, so "Add to Home screen" gives a shortcut rather
 than an offline-capable app unless the phone trusts the certificate.
 """
+import hashlib
 import shutil
 import socket
+import ssl
 import subprocess
 import time
 from pathlib import Path
@@ -50,11 +52,18 @@ def ensure_cert(ip: str) -> tuple[Path, Path]:
     return key, cert
 
 
+def fingerprint(cert: Path) -> str:
+    """SHA-256 of the certificate, as the Android app shows it before trusting this laptop."""
+    der = ssl.PEM_cert_to_DER_cert(cert.read_text())
+    return ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())
+
+
 if __name__ == "__main__":
     if not settings.app_token:
         raise SystemExit("Set APP_TOKEN in .env first (any long random string).")
     ip = lan_ip()
     key, cert = ensure_cert(ip)
     print(f"\n  Open on the phone:  https://{ip}:{PORT}/?t={settings.app_token}\n"
-          "  (accept the certificate warning once, then 'Add to Home screen' for a shortcut)\n")
+          "  (accept the certificate warning once, then 'Add to Home screen' for a shortcut)\n"
+          f"  Android app: paste the same link; it should show this fingerprint:\n  {fingerprint(cert)}\n")
     uvicorn.run("app.main:app", host="0.0.0.0", port=PORT, ssl_keyfile=str(key), ssl_certfile=str(cert))
