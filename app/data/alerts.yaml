@@ -1,0 +1,44 @@
+# Spoken alerts per language. {helpline} is replaced with the language's spoken
+# form of 1930 (the national cyber-crime helpline), written as words so TTS reads
+# it digit by digit instead of as a year. Audio tags are added in code by level.
+# L2 is the line used with a family member's cloned voice.
+hi:
+  helpline: उन्नीस सौ तीस
+  L1: ध्यान से। कोई भी पुलिस वाला फ़ोन पर अरेस्ट नहीं करता। शक हो तो {helpline} पर कॉल करें।
+  L2: सुनो, मैं हूँ। ये फ्रॉड कॉल है। फ़ोन काट दो। {helpline} पर शिकायत करो।
+  L3: ये फ्रॉड है! पैसा मत भेजो! फ़ोन काटो! {helpline} पर कॉल करो!
+en:
+  helpline: one nine three zero
+  L1: Careful. No police officer arrests anyone over the phone. If in doubt, call {helpline}.
+  L2: Listen, it's me. This is a fraud call. Hang up now. Report it at {helpline}.
+  L3: This is a fraud! Do not send any money! Hang up the phone! Call {helpline}!
+ta:
+  needs_native_review: true
+  helpline: ஒன்று ஒன்பது மூன்று பூஜ்ஜியம்
+  L1: கவனமாக இருங்கள். எந்த போலீஸும் போனில் கைது செய்வதில்லை. சந்தேகம் இருந்தால் {helpline} அழையுங்கள்.
+  L2: கேளுங்கள், நான்தான். இது மோசடி அழைப்பு. போனை வையுங்கள். {helpline} இல் புகார் செய்யுங்கள்.
+  L3: இது மோசடி! பணம் அனுப்பாதீர்கள்! போனை வையுங்கள்! {helpline} அழையுங்கள்!
+bn:
+  needs_native_review: true
+  helpline: এক নয় তিন শূন্য
+  L1: সাবধান। কোনো পুলিশ ফোনে গ্রেফতার করে না। সন্দেহ হলে {helpline} নম্বরে ফোন করুন।
+  L2: শোনো, আমি বলছি। এটা প্রতারণার কল। ফোন কেটে দাও। {helpline} নম্বরে অভিযোগ করো।
+  L3: এটা প্রতারণা! টাকা পাঠাবেন না! ফোন কেটে দিন! {helpline} নম্বরে ফোন করুন!
+kn:
+  needs_native_review: true
+  helpline: ಒಂದು ಒಂಬತ್ತು ಮೂರು ಸೊನ್ನೆ
+  L1: ಎಚ್ಚರಿಕೆ. ಯಾವ ಪೊಲೀಸರೂ ಫೋನ್‌ನಲ್ಲಿ ಬಂಧಿಸುವುದಿಲ್ಲ. ಅನುಮಾನವಿದ್ದರೆ {helpline} ಗೆ ಕರೆ ಮಾಡಿ.
+  L2: ಕೇಳಿ, ನಾನೇ. ಇದು ವಂಚನೆಯ ಕರೆ. ಫೋನ್ ಕಟ್ ಮಾಡಿ. {helpline} ಗೆ ದೂರು ನೀಡಿ.
+  L3: ಇದು ವಂಚನೆ! ಹಣ ಕಳುಹಿಸಬೇಡಿ! ಫೋನ್ ಕಟ್ ಮಾಡಿ! {helpline} ಗೆ ಕರೆ ಮಾಡಿ!
+te:
+  needs_native_review: true
+  helpline: ఒకటి తొమ్మిది మూడు సున్నా
+  L1: జాగ్రత్త. ఏ పోలీసూ ఫోన్‌లో అరెస్ట్ చేయరు. అనుమానం ఉంటే {helpline} కి కాల్ చేయండి.
+  L2: విను, నేనే. ఇది మోసపు కాల్. ఫోన్ కట్ చేయి. {helpline} కి ఫిర్యాదు చేయి.
+  L3: ఇది మోసం! డబ్బు పంపకండి! ఫోన్ కట్ చేయండి! {helpline} కి కాల్ చేయండి!
+mr:
+  needs_native_review: true
+  helpline: एक नऊ तीन शून्य
+  L1: सावध राहा. कोणताही पोलीस फोनवर अटक करत नाही. शंका असल्यास {helpline} वर कॉल करा.
+  L2: ऐक, मी बोलतोय. हा फसवणुकीचा कॉल आहे. फोन कट कर. {helpline} वर तक्रार कर.
+  L3: ही फसवणूक आहे! पैसे पाठवू नका! फोन कट करा! {helpline} वर कॉल करा!
