@@ -6,6 +6,7 @@ Browsers cannot set WebSocket headers, so the API key lives only here.
 import asyncio
 import hmac
 import json
+import logging
 import re
 import wave
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from app.config import settings
 from app.tracker import Tracker, keyterms
 
 WEB = Path(__file__).parent.parent / "web"
+log = logging.getLogger("uvicorn.error")  # shows in the app.serve window
 app = FastAPI()
 
 
@@ -129,8 +131,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if emb and emb.get("honeypot"):
             try:
                 return await gnani.vc_tts(line, emb["embedding"])
-            except Exception:
-                pass  # a clone failure must not leave the caller in silence
+            except Exception as e:  # a clone failure must not leave the caller in silence
+                log.warning("honeypot voice clone failed, using the neutral voice: %s", e)
         return await gnani.tts(line, voice=settings.honeypot_voice,
                                language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
 

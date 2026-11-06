@@ -86,11 +86,9 @@ def evidence_complete(tracker: Tracker, exchanges: int) -> bool:
 
 def proof(tracker: Tracker) -> list[dict]:
     """The caller's own words that show the scam: the first line heard for each stage."""
-    first = {}
-    for h in tracker.hits:
-        first.setdefault(h.stage, h)
-    return [{"stage": s, "name": STAGE_NAMES[s], "phrase": h.phrase, "said": h.text}
-            for s, h in sorted(first.items())]
+    # same 10-minute window that evidence_complete() judged; hits are kept in time order
+    return [{"stage": s, "name": STAGE_NAMES[s], "phrase": hs[0].phrase, "said": hs[0].text}
+            for s, hs in sorted(tracker.active().items())]
 
 
 async def reply(history: list[dict], code: str | None) -> str:
