@@ -122,21 +122,30 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
 
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
-        state.persona_busy = True
+        failures = 0
         try:
             while state.honeypot and state.history and state.history[-1]["role"] == "user":
+                asked = state.history[-1]["content"]
                 line = await honeypot.reply(state.history, lang)
                 if not state.honeypot:
                     return
-                state.history.append({"role": "assistant", "content": line})
+                if state.history[-1]["content"] != asked:
+                    continue  # the caller said more meanwhile: answer all of it instead
                 try:
                     audio = await gnani.tts(line, voice=settings.honeypot_voice,
                                             language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
                 except Exception as e:
+                    failures += 1
                     await send({"type": "error", "message": f"honeypot voice failed: {e}"})
+                    if failures >= 2:
+                        await set_honeypot(False, "error", lang)
+                        return
                     continue
                 if not state.honeypot:
                     return
+                if state.history[-1]["content"] != asked:
+                    continue
+                state.history.append({"role": "assistant", "content": line})  # only lines actually spoken
                 await send({"type": "say", "text": line})
                 await send(audio)
                 exchanges = sum(m["role"] == "assistant" for m in state.history)
@@ -177,6 +186,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 else:
                     state.history.append({"role": "user", "content": msg["text"]})
                 if not state.persona_busy:
+                    state.persona_busy = True  # set before spawning: two transcripts in one tick start one loop
                     spawn(persona_loop(lang))
         elif kind == "error":
             await send({"type": "error", "message": msg.get("message", "STT error")})
@@ -219,7 +229,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     finally:
         for t in list(alert_tasks):
             t.cancel()
-        await set_honeypot(False, "ended")
+        if state.socket in (ws, None):  # an old socket closing must not end a reconnected call's honeypot
+            await set_honeypot(False, "ended")
         if state.socket is ws:
             state.socket = None
         if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops

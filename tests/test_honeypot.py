@@ -115,7 +115,7 @@ def test_honeypot_needs_groq_key(client, monkeypatch):
 
 
 def test_safe_blocks_spelled_out_numbers_and_more_payment_claims():
-    for line in ("four eight two one", "it is nine, eight, seven", "चार आठ दो एक", "ek do teen char",
+    for line in ("four eight two one", "four and eight", "it is nine, eight, seven", "चार आठ दो एक", "ek do teen char",
                  "I have made the payment", "मैंने भेज दिया है", "haan bhej diya beta"):
         assert honeypot.safe(line, "hi-IN") == honeypot.STALL["hi"], line
     assert honeypot.safe("One minute, which bank was it?", "en-IN") == "One minute, which bank was it?"
@@ -156,3 +156,28 @@ def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
         gate.set()
         ws.send_text(json.dumps({"type": "stop"}))
     assert not client.tts_calls  # the stale reply was never spoken
+
+
+def test_words_said_during_a_reply_get_answered(client, monkeypatch):
+    replies = []
+
+    async def reply(history, code):
+        replies.append(history[-1]["content"])
+        if len(replies) == 1:  # the caller keeps talking while the first reply is being written
+            history[-1]["content"] += " aur jaldi"
+        return f"reply to: {history[-1]['content']}"
+
+    monkeypatch.setattr(honeypot, "reply", reply)
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana"), said("OTP batao")]
+    with client.websocket_connect("/ws?call=hp4") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        receive_until(ws, "audio")
+        ws.send_text(json.dumps({"type": "honeypot", "on": True}))
+        receive_until(ws, "honeypot")
+        ws.send_bytes(b"\0" * 1024)
+        assert receive_until(ws, "say")["text"] == "reply to: OTP batao aur jaldi"
+        ws.send_text(json.dumps({"type": "stop"}))
+    assert len(client.tts_calls) == 1  # the stale first reply was dropped, not spoken

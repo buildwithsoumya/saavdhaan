@@ -55,7 +55,7 @@ NUMBER_WORDS = [  # spelled-out digits: two or more in a row could read out an O
     "பூஜ்ஜியம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது",
 ]
 _num = "|".join(sorted(map(re.escape, NUMBER_WORDS), key=len, reverse=True))
-NUMBER_RUN = re.compile(rf"(?<!\w)(?:{_num})(?:[\s,.-]+(?:{_num})){{1,}}(?!\w)", re.I)
+NUMBER_RUN = re.compile(rf"(?<!\w)(?:{_num})(?:(?:[\s,.-]|(?<!\w)(?:and|aur|और)(?!\w))+(?:{_num})){{1,}}(?!\w)", re.I)
 PAID = re.compile(
     r"\b(sent|transferred|paid|payment (is )?(done|made|complete)|made the payment|done the transfer)\b"
     r"|bhej (diya|diye|di)|transfer kar (diya|diye)|payment (ho gaya|kar diya)"
