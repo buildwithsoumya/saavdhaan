@@ -104,7 +104,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
 
 - **Live guardian page:** a big postmark-style status (word + colour + level), five stage boxes with the phrases heard, live transcript, detected language, alert latency in ms, and a large **1930** helpline panel at L3.
 - **Spoken warnings** in hi, en, ta, bn, kn, te, mr with Timbre v3.0 audio tags (`<slow>`, `<whispers>`, `<shouting>`), cached after the first synthesis.
-- **Family voice:** a family member records 5–30 s (with explicit consent) and the L2 warning (“Listen, it's me. This is a fraud call. Hang up.”) plays in their cloned voice. Deleting the voice removes the embedding and its cached audio.
+- **Family voice:** a family member records 5–30 s (with explicit consent) and the L2 warning (“Listen, it's me. This is a fraud call. Hang up now…”) plays in their cloned voice. Deleting the voice removes the embedding and its cached audio.
 - **Honeypot mode (opt-in):** at L2+, with family permission, Saavdhaan answers the caller in a neutral persona voice while the elder steps away, collecting evidence (name, “department”, where the money should go) through a Groq LLM. Rules enforced in code: it never speaks digits or number words and never claims money was sent. It stops once it has enough evidence and tells the elder to hang up and report.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
 - **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.

@@ -18,7 +18,7 @@
 % ---- backend ------------------------------------------------------------------
 \begin{scope}[every node/.append style={mod, minimum width=5.4cm}]
   \node[fill=paperdeep] (ws) at (14.0,11.2) {\modtitle{guardian() \,/ws bridge}\\token check $\cdot$ per-call state survives reconnects};
-  \node (stt)   at (14.0,9.5) {\modtitle{SttStream}\\session rotation $<$15 min, \code{previous\_text}};
+  \node (stt)   at (14.0,9.5) {\modtitle{SttStream}\\session rotation every 14 min, \code{previous\_text}};
   \node[draw=danger, line width=1.1pt] (trk) at (14.0,7.8) {\modtitle{Tracker}\\5-stage kill chain $\cdot$ negation guard\\10-minute rolling window};
   \node (alr)   at (14.0,6.1) {\modtitle{Alerts}\\line per level $\times$ language, disk-cached};
   \node (hp)    at (14.0,4.4) {\modtitle{Honeypot}\\persona replies $\cdot$ code-enforced rules};

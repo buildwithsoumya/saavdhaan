@@ -1,4 +1,4 @@
-# Rebuild the README diagrams: TikZ -> PDF -> SVG (+ PNG preview).
+# Rebuild the README diagrams: TikZ -> PDF -> SVG in docs/img (a PNG preview is left in the temp folder).
 # Needs a TeX distribution with pdflatex and pdftocairo (MiKTeX or TeX Live).
 param([string[]]$Names = @('architecture', 'killchain', 'sequence', 'bench'))
 $ErrorActionPreference = 'Stop'
