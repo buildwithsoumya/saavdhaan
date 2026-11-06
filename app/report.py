@@ -115,7 +115,9 @@ async def build(audio_path: Path) -> Path:
     doc = await gnani.batch_transcribe(mp3, audio_path.stem + ".mp3")
     out = Path(settings.data_dir) / "reports" / f"{audio_path.stem}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    await asyncio.to_thread(out.write_text, render_html(analyse(doc), audio_path.name), encoding="utf-8")
+    tmp = out.with_suffix(".tmp")  # a crash mid-write must not leave a half page that is served forever
+    await asyncio.to_thread(tmp.write_text, render_html(analyse(doc), audio_path.name), encoding="utf-8")
+    tmp.replace(out)
     return out
 
 
