@@ -166,6 +166,19 @@ def test_own_voice_failure_falls_back_to_neutral_persona(client, voices, monkeyp
     assert run_one_persona_turn(client, "hp8", f"family:{voices['own']}") == b"PERSONA"
 
 
+def test_silent_mode_warns_on_screen_only(client):
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana")]
+    with client.websocket_connect("/ws?call=hp9&silent=1") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        alert = receive_until(ws, "alert")
+        assert alert["level"] == 2 and alert["silent"] is True and alert["text"]
+        ws.send_text(json.dumps({"type": "stop"}))
+    assert client.alert_calls == []  # nothing synthesised, nothing the caller could hear
+
+
 def test_honeypot_needs_groq_key(client, monkeypatch):
     monkeypatch.setattr(main.settings, "groq_api_key", "")
     with client.websocket_connect("/ws?call=hp2") as ws:
