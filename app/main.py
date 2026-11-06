@@ -4,14 +4,15 @@ Browser --(16 kHz PCM over WS)--> backend --(headers + 1024-byte frames)--> Gnan
 Browsers cannot set WebSocket headers, so the API key lives only here.
 """
 import asyncio
+import hmac
 import json
 import re
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import alerts, enrol, gnani, report
@@ -36,6 +37,23 @@ MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store 
 CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
+def token_ok(token: str | None) -> bool:
+    if not settings.app_token:
+        return True
+    # bytes compare: compare_digest rejects non-ASCII str, which would turn a junk token into a 500
+    return hmac.compare_digest((token or "").encode(), settings.app_token.encode())
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    """The page itself is public; anything that spends credits or shows call data needs the token."""
+    if request.url.path.startswith(("/api/", "/reports/")):
+        token = request.query_params.get("token") or request.headers.get("x-app-token")
+        if not token_ok(token):
+            return JSONResponse({"detail": "missing or wrong access token"}, status_code=401)
+    return await call_next(request)
+
+
 def save_recording(call_id: str, pcm: bytes) -> Path:
     path = Path(settings.data_dir) / "calls" / f"{call_id}.wav"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -48,8 +66,11 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 
 
 @app.websocket("/ws")
-async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
-    await ws.accept()
+async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = ""):
+    await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
+    if not token_ok(token):
+        await ws.close(code=4401)
+        return
     if not CALL_ID.fullmatch(call):  # the id becomes a file name for recordings
         await ws.close(code=1008)
         return

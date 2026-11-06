@@ -24,7 +24,20 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 
-let ws = null, ctx = null, mic = null, node = null;
+// access token: opened once as /?t=<token>, then remembered on this device
+(() => {
+  const url = new URL(location.href);
+  const t = url.searchParams.get("t");
+  if (t) {
+    store.set("token", t);
+    url.searchParams.delete("t");
+    history.replaceState(null, "", url);
+  }
+})();
+const withToken = (path) => `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(store.get("token", ""))}`;
+const api = (path, opts) => fetch(withToken(path), opts);
+
+let ws = null, ctx = null, mic = null, node = null, wakeLock = null;
 let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null, failures = 0;
 const queue = []; // alert audio plays one clip at a time
@@ -34,7 +47,7 @@ let playing = false;
 async function loadVoices() {
   let family = [];
   try {
-    const r = await fetch("/api/voices");
+    const r = await api("/api/voices");
     if (r.ok) family = await r.json();
   } catch {}
   const voice = $("voice");
@@ -91,7 +104,7 @@ async function saveVoice() {
   $("enrol-save").disabled = true;
   $("enrol-status").textContent = "आवाज़ बना रहे हैं… · Creating voice…";
   try {
-    const r = await fetch("/api/voices", { method: "POST", body: form });
+    const r = await api("/api/voices", { method: "POST", body: form });
     const body = await r.json();
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
@@ -117,7 +130,7 @@ function initSettings() {
   $("voices").onclick = async (e) => {
     const id = e.target.dataset.del;
     if (!id) return;
-    await fetch(`/api/voices/${id}`, { method: "DELETE" });
+    await api(`/api/voices/${id}`, { method: "DELETE" });
     if (store.get("voice", "") === `family:${id}`) store.set("voice", "Shivani");
     loadVoices();
   };
@@ -231,6 +244,19 @@ class Pcm16k extends AudioWorkletProcessor {
 }
 registerProcessor("pcm16k", Pcm16k);`;
 
+// A phone that turns its screen off stops the mic; keep it awake while listening.
+async function keepAwake(on) {
+  try {
+    if (on) {
+      if ("wakeLock" in navigator && !(wakeLock && !wakeLock.released)) wakeLock = await navigator.wakeLock.request("screen");
+    } else {
+      await wakeLock?.release();
+      wakeLock = null;
+    }
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => listening && document.visibilityState === "visible" && keepAwake(true));
+
 async function startAudio() {
   mic = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
@@ -244,9 +270,11 @@ async function startAudio() {
     ws.send(muted ? new ArrayBuffer(1024) : e.data);
   };
   ctx.createMediaStreamSource(mic).connect(node);
+  keepAwake(true);
 }
 
 function stopAudio() {
+  keepAwake(false);
   mic?.getTracks().forEach((t) => t.stop());
   ctx?.close();
   mic = ctx = node = null;
@@ -254,7 +282,8 @@ function stopAudio() {
 
 // ---- socket ---------------------------------------------------------------
 function connect() {
-  const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0") });
+  const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
+    token: store.get("token", "") });
   const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
   ws = sock;
   sock.binaryType = "arraybuffer";
@@ -271,7 +300,12 @@ function connect() {
       renderLevel(m.explain.level);
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
-  sock.onclose = () => {
+  sock.onclose = (e) => {
+    if (e.code === 4401 && sock === ws) {
+      if (listening) toggle();
+      conn("ऐप का लिंक गलत है · Wrong app link: open the link with ?t= once");
+      return;
+    }
     if (!listening || sock !== ws) return; // an old socket closing after stop/start
     if (++failures > 5) {
       toggle(); // stop first: toggle() resets the status line
@@ -323,13 +357,13 @@ async function makeReport() {
   try {
     let r;
     for (let attempt = 0; attempt < 3; attempt++) { // the recording is saved as the call closes
-      r = await fetch(`/api/report/${callId}`, { method: "POST" });
+      r = await api(`/api/report/${callId}`, { method: "POST" });
       if (r.status !== 404) break;
       await new Promise((ok) => setTimeout(ok, 1500));
     }
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.detail || r.statusText);
-    $("report-link").href = body.url;
+    $("report-link").href = withToken(body.url);
     $("report-link").hidden = false;
     btn.textContent = "रिपोर्ट तैयार · Report ready";
   } catch (err) {
@@ -340,6 +374,9 @@ async function makeReport() {
 }
 
 initSettings();
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch((err) => console.warn("offline app shell unavailable:", err));
+}
 $("report").onclick = makeReport;
 renderStages(null);
 renderLevel(0);
