@@ -49,6 +49,10 @@
         <button id="hp-stop" class="btn btn-quiet" type="button">बंद करें · Stop</button>
       </div>
       <p class="hp-done" id="hp-done" hidden>सबूत मिल गया। अब फ़ोन काटें और 1930 पर रिपोर्ट करें। · Enough evidence. Hang up now and report to 1930.</p>
+      <div class="proof" id="hp-proof" hidden>
+        <p class="proof-lead">यह धोखा है। फ़ोन करने वाले ने खुद यह कहा: · This is a scam. The caller said it themselves:</p>
+        <ol id="hp-proof-list"></ol>
+      </div>
     </section>
 
     <section class="helpline" id="helpline" hidden>
@@ -85,6 +89,10 @@
           <input id="hp-allow" type="checkbox">
           <span>धोखे वाली कॉल पर Saavdhaan को बात करने की अनुमति दें (हनीपॉट) · Allow honeypot mode on scam calls</span>
         </label>
+        <label class="field">
+          <span>हनीपॉट में आवाज़ · Honeypot voice <small>(अपनी आवाज़ नीचे जोड़ें · add your own voice below)</small></span>
+          <select id="hp-voice"></select>
+        </label>
         <label class="check">
           <input id="record" type="checkbox">
           <span>रिपोर्ट के लिए कॉल रिकॉर्ड करें · Record this call for a report</span>
@@ -104,6 +112,10 @@
           <label class="check">
             <input id="enrol-consent" type="checkbox">
             <span>मैं सहमति देता/देती हूँ कि मेरी आवाज़ से सिर्फ़ इस फ़ोन पर धोखे की चेतावनी बनाई जाए · I consent to my voice being cloned only to speak scam warnings on this device</span>
+          </label>
+          <label class="check">
+            <input id="enrol-hp" type="checkbox">
+            <span>यह मेरी अपनी आवाज़ है। हनीपॉट में Saavdhaan इसी आवाज़ में ठग से बात करे · This is my own voice. Saavdhaan may use it to talk to scam callers in honeypot mode</span>
           </label>
           <button id="enrol-save" class="btn" type="button" disabled>आवाज़ जोड़ें · Save voice</button>
           <p class="hint" id="enrol-status" aria-live="polite"></p>

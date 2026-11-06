@@ -45,7 +45,9 @@ def _read(path: Path) -> dict | None:
         return None  # a half-written or corrupt file counts as absent
 
 
-async def enrol(audio: bytes, name: str, consent: bool) -> dict:
+async def enrol(audio: bytes, name: str, consent: bool, honeypot: bool = False) -> dict:
+    """`honeypot`: the speaker also agrees that this voice may talk to scam callers in
+    honeypot mode. Only the owner of the voice should give that; it is stored with the voice."""
     if not consent:
         raise EnrolError("consent is required to clone a voice")
     name = name.strip()[:40]
@@ -61,10 +63,10 @@ async def enrol(audio: bytes, name: str, consent: bool) -> dict:
     if not MIN_S <= seconds <= MAX_S:
         raise EnrolError(f"recording must be {MIN_S}-{MAX_S} seconds, got {seconds:.1f}")
     embedding = await gnani.clone_embedding(wav, "reference.wav")
-    record = {"id": uuid.uuid4().hex[:12], "name": name, "consent": True,
+    record = {"id": uuid.uuid4().hex[:12], "name": name, "consent": True, "honeypot": bool(honeypot),
               "consented_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "embedding": embedding}
     _path(record["id"]).write_text(json.dumps(record), encoding="utf-8")
-    return {"id": record["id"], "name": name}
+    return {"id": record["id"], "name": name, "honeypot": record["honeypot"]}
 
 
 def load(voice_id: str) -> dict | None:
@@ -75,7 +77,8 @@ def load(voice_id: str) -> dict | None:
 
 def voices() -> list[dict]:
     records = (_read(p) for p in sorted(_dir().glob("*.json")))
-    return [{"id": r["id"], "name": r["name"]} for r in records if r and r.get("consent")]
+    return [{"id": r["id"], "name": r["name"], "honeypot": bool(r.get("honeypot"))}
+            for r in records if r and r.get("consent")]
 
 
 def delete(voice_id: str) -> bool:

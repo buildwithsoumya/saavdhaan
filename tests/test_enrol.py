@@ -61,7 +61,7 @@ def test_api_enrol_list_delete(data):
     r = c.post("/api/voices", data={"name": "Rahul", "consent": "true"}, files={"audio": ("a.wav", wav_of(8))})
     assert r.status_code == 200
     vid = r.json()["id"]
-    assert c.get("/api/voices").json() == [{"id": vid, "name": "Rahul"}]
+    assert c.get("/api/voices").json() == [{"id": vid, "name": "Rahul", "honeypot": False}]
     assert c.delete(f"/api/voices/{vid}").status_code == 200
     assert c.delete(f"/api/voices/{vid}").status_code == 404
 
@@ -96,6 +96,15 @@ def test_family_voice_used_for_l2_untagged_with_fallbacks(data, monkeypatch):
     # a deleted voice also falls back
     enrol.delete(v["id"])
     assert asyncio.run(alerts.alert_audio(2, "ta-IN", fam)) == b"TIMBRE"
+
+
+def test_honeypot_consent_is_stored_with_the_voice(data):
+    c = TestClient(main.app)
+    r = c.post("/api/voices", data={"name": "Kamla", "consent": "true", "honeypot": "true"},
+               files={"audio": ("a.wav", wav_of(8))})
+    assert r.status_code == 200 and r.json()["honeypot"] is True
+    assert enrol.load(r.json()["id"])["honeypot"] is True
+    assert c.get("/api/voices").json()[0]["honeypot"] is True
 
 
 def test_oversized_upload_rejected_before_ffmpeg(data):

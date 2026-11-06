@@ -55,6 +55,12 @@ async function loadVoices() {
     + VOICES.map((v) => `<option>${v}</option>`).join("");
   const saved = store.get("voice", "Shivani");
   voice.value = [...voice.options].some((o) => o.value === saved) ? saved : "Shivani";
+  // honeypot: only voices whose owner allowed them to talk to scam callers
+  const hp = $("hp-voice");
+  hp.innerHTML = `<option value="">सामान्य आवाज़ · Neutral voice</option>`
+    + family.filter((f) => f.honeypot).map((f) => `<option value="family:${f.id}">मेरी आवाज़ · My voice: ${esc(f.name)}</option>`).join("");
+  const hpSaved = store.get("hp-voice", "");
+  hp.value = [...hp.options].some((o) => o.value === hpSaved) ? hpSaved : "";
   $("voices").innerHTML = family.map((f) => `<li><span>${esc(f.name)}</span>
     <button class="btn btn-quiet" type="button" data-del="${f.id}">हटाएँ · Delete</button></li>`).join("");
 }
@@ -101,6 +107,7 @@ async function saveVoice() {
   form.append("audio", clip, "reference");
   form.append("name", $("enrol-name").value);
   form.append("consent", $("enrol-consent").checked);
+  form.append("honeypot", $("enrol-hp").checked);
   $("enrol-save").disabled = true;
   $("enrol-status").textContent = "आवाज़ बना रहे हैं… · Creating voice…";
   try {
@@ -109,7 +116,9 @@ async function saveVoice() {
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
     store.set("voice", `family:${body.id}`);
+    if (body.honeypot) store.set("hp-voice", `family:${body.id}`);
     $("enrol-name").value = "";
+    $("enrol-hp").checked = false;
     setClip(null, "कोई रिकॉर्डिंग नहीं · No recording yet");
     await loadVoices();
   } catch (err) {
@@ -123,6 +132,7 @@ function initSettings() {
   const voice = $("voice");
   loadVoices();
   voice.onchange = () => store.set("voice", voice.value);
+  $("hp-voice").onchange = (e) => store.set("hp-voice", e.target.value);
   $("enrol-rec").onclick = recordClip;
   $("enrol-file").onchange = (e) => e.target.files[0] && setClip(e.target.files[0], e.target.files[0].name);
   $("enrol-consent").onchange = () => setClip(clip, $("enrol-clip").textContent);
@@ -132,6 +142,7 @@ function initSettings() {
     if (!id) return;
     await api(`/api/voices/${id}`, { method: "DELETE" });
     if (store.get("voice", "") === `family:${id}`) store.set("voice", "Shivani");
+    if (store.get("hp-voice", "") === `family:${id}`) store.set("hp-voice", "");
     loadVoices();
   };
   $("family").value = store.get("family", "");
@@ -181,9 +192,17 @@ function renderLevel(lvl) {
 function renderHoneypot() {
   const allowed = store.get("hp-allow", "0") === "1";
   const done = !$("hp-done").hidden;
-  $("honeypot").hidden = !(allowed && listening && (level >= 2 || honeypotOn || done));
+  // the proof stays on screen after the elder stops listening and hangs up
+  $("honeypot").hidden = !(allowed && ((listening && (level >= 2 || honeypotOn)) || done));
   $("hp-offer").hidden = honeypotOn || done;
   $("hp-live").hidden = !honeypotOn;
+}
+
+const STAGE_HI = Object.fromEntries(STAGES.map(([id, hi]) => [id, hi]));
+function renderProof(items) {
+  $("hp-proof-list").innerHTML = items.map((p) =>
+    `<li><b>${STAGE_HI[p.stage] || ""} · ${esc(p.name)}: “${esc(p.phrase)}”</b>${esc(p.said)}</li>`).join("");
+  $("hp-proof").hidden = items.length === 0;
 }
 
 function addLine(text, lang, persona = false) {
@@ -303,7 +322,7 @@ function stopAudio() {
 // ---- socket ---------------------------------------------------------------
 function connect() {
   const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
-    token: store.get("token", "") });
+    token: store.get("token", ""), hpvoice: store.get("hp-voice", "") });
   const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
   ws = sock;
   sock.binaryType = "arraybuffer";
@@ -323,6 +342,7 @@ function connect() {
     else if (m.type === "honeypot") {
       honeypotOn = m.on;
       $("hp-done").hidden = m.reason !== "evidence";
+      if (m.proof) renderProof(m.proof);
       renderHoneypot();
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
@@ -372,6 +392,7 @@ async function toggle() {
     callId = crypto.randomUUID();
     honeypotOn = false;
     $("hp-done").hidden = true;
+    $("hp-proof").hidden = true;
     failures = 0;
     $("lines").innerHTML = "";
     $("latency").textContent = "—";
