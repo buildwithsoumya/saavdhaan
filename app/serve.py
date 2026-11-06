@@ -16,6 +16,7 @@ import shutil
 import socket
 import ssl
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -52,6 +53,15 @@ def ensure_cert(ip: str) -> tuple[Path, Path]:
     return key, cert
 
 
+def keep_awake() -> None:
+    """Stop Windows from idle-sleeping while serving: a sleeping laptop drops Wi-Fi and the
+    phone shows "Cannot reach the laptop". Ends with this process. Closing the lid still sleeps."""
+    if sys.platform == "win32":
+        import ctypes
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+
+
 def fingerprint(cert: Path) -> str:
     """SHA-256 of the certificate, as the Android app shows it before trusting this laptop."""
     der = ssl.PEM_cert_to_DER_cert(cert.read_text())
@@ -65,5 +75,7 @@ if __name__ == "__main__":
     key, cert = ensure_cert(ip)
     print(f"\n  Open on the phone:  https://{ip}:{PORT}/?t={settings.app_token}\n"
           "  (accept the certificate warning once, then 'Add to Home screen' for a shortcut)\n"
-          f"  Android app: paste the same link; it should show this fingerprint:\n  {fingerprint(cert)}\n")
+          f"  Android app: paste the same link; it should show this fingerprint:\n  {fingerprint(cert)}\n"
+          "  The laptop stays awake while this runs. Keep the lid open and this window running.\n")
+    keep_awake()
     uvicorn.run("app.main:app", host="0.0.0.0", port=PORT, ssl_keyfile=str(key), ssl_certfile=str(cert))
