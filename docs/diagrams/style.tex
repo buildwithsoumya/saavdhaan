@@ -1,0 +1,52 @@
+% Shared look for the README diagrams. Colours are the app's own tokens (web/styles.css).
+\usepackage[T1]{fontenc}
+\usepackage[scaled=0.95]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc,shapes.geometric,shapes.symbols}
+
+\definecolor{ink}{HTML}{15233F}
+\definecolor{inksoft}{HTML}{3A4D6B}
+\definecolor{paper}{HTML}{D9E7EF}
+\definecolor{paperdeep}{HTML}{C6DAE6}
+\definecolor{rule}{HTML}{9DB8CB}
+\definecolor{safe}{HTML}{17643A}
+\definecolor{safewash}{HTML}{D3EBDC}
+\definecolor{caution}{HTML}{7A4F00}
+\definecolor{cautionwash}{HTML}{F3DFA6}
+\definecolor{danger}{HTML}{B0221B}
+\definecolor{dangerwash}{HTML}{F7DCD9}
+\definecolor{stop}{HTML}{8D0C0C}
+\definecolor{stopwash}{HTML}{F6D4CF}
+\definecolor{coral}{HTML}{FF8A80}
+\definecolor{canvas}{HTML}{F7FAFC}
+
+\newcommand{\modtitle}[1]{{\small\bfseries #1}}
+\newcommand{\grouptag}[1]{{\scriptsize\bfseries\color{inksoft}\MakeUppercase{#1}}}
+
+\tikzset{
+  every node/.style={font=\footnotesize, text=ink},
+  mod/.style={draw=ink, line width=0.7pt, fill=white, rounded corners=3pt, align=center,
+              minimum height=1.25cm, inner sep=4pt},
+  api/.style={mod, fill=paper},
+  actor/.style={mod, fill=ink, text=white, minimum width=2.8cm},
+  frame/.style={draw=rule, line width=0.8pt, dashed, rounded corners=6pt, inner sep=10pt},
+  flow/.style={-{Stealth[length=6pt,width=5pt]}, line width=0.8pt, draw=ink},
+  soft/.style={flow, draw=inksoft, dashed},
+  halo/.style={preaction={draw=canvas, line width=4pt, -}},
+  lab/.style={font=\scriptsize, text=inksoft, fill=canvas, inner sep=1.5pt},
+  store/.style={cylinder, shape border rotate=90, aspect=0.18, draw=ink, line width=0.7pt,
+                fill=paper, align=center, minimum height=1.35cm, inner sep=4pt},
+}
+
+% Light card behind everything (own layer, under the frames), so the SVG reads on GitHub's dark theme too.
+\pgfdeclarelayer{card}
+\pgfsetlayers{card,background,main}
+\newcommand{\card}{%
+  \begin{pgfonlayer}{card}
+    \fill[canvas, rounded corners=10pt]
+      ($(current bounding box.south west)+(-0.5,-0.5)$) rectangle ($(current bounding box.north east)+(0.5,0.5)$);
+  \end{pgfonlayer}}
+% code names without a bitmap typewriter font
+\newcommand{\code}[1]{{\color{inksoft}\itshape #1}}
