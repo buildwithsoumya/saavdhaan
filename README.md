@@ -201,7 +201,7 @@ Try a negative such as `"Never share your OTP with anyone"`: it stays at 0.
 | `GNANI_API_KEY` | Gnani API key (required) |
 | `ALERT_VOICE` | Timbre v3.0 voice for warnings (default `Shivani`) |
 | `APP_TOKEN` | Access token for API, WebSocket and reports; required by `app.serve` |
-| `GROQ_API_KEY`, `GROQ_MODEL` | LLM for honeypot replies (default `llama-3.3-70b-versatile`) |
+| `GROQ_API_KEY`, `GROQ_MODEL` | LLM for honeypot replies (default `openai/gpt-oss-120b`) |
 | `HONEYPOT_VOICE` | Timbre v3.0 voice for honeypot mode when the elder has not chosen their own consented voice (default `Vasudha`) |
 
 Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs live in `data/`, which is gitignored.
