@@ -118,14 +118,16 @@ async def transcribe(pcm: bytes, rate: int, config: str, language: str, speed: f
                              keyterms=keyterms("base") if use_kt else (),
                              language="indic-auto" if model == "prisma-v3.0" else language)
     await stream.start()
-    start = time.perf_counter()
-    for i in range(0, len(pcm), gnani.FRAME_BYTES):
-        await stream.send_audio(pcm[i:i + gnani.FRAME_BYTES])
-        sent += 1
-        await asyncio.sleep(max(0.0, start + sent * frame_s / speed - time.perf_counter()))
-    await stream.commit()
-    await asyncio.sleep(4)  # let the last utterances come back
-    await stream.close()
+    try:
+        start = time.perf_counter()
+        for i in range(0, len(pcm), gnani.FRAME_BYTES):
+            await stream.send_audio(pcm[i:i + gnani.FRAME_BYTES])
+            sent += 1
+            await asyncio.sleep(max(0.0, start + sent * frame_s / speed - time.perf_counter()))
+        await stream.commit()
+        await asyncio.sleep(4)  # let the last utterances come back
+    finally:
+        await stream.close()
     return out
 
 

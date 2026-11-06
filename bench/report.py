@@ -18,7 +18,8 @@ def _f(v):
 def aggregate(rows) -> list[dict]:
     groups = defaultdict(list)
     for r in rows:
-        groups[(r["condition"], r["config"])].append(r)
+        speed = r.get("speed") or "1.0"  # runs at other pacing speeds are reported as separate rows
+        groups[(r["condition"], r["config"] + ("" if speed == "1.0" else f" x{speed}"))].append(r)
     out = []
     for (cond, cfg), rs in groups.items():
         scams = [r for r in rs if r["label"] == "scam"]
@@ -39,7 +40,7 @@ def aggregate(rows) -> list[dict]:
         g["threshold"] = min(ok) if ok else None
         out.append(g)
     order = {c: i for i, c in enumerate(["reference", "clean", "phone", "phone_snr10", "phone_snr5", "phone_dropout"])}
-    return sorted(out, key=lambda g: (order.get(g["condition"], 99), list(COLORS).index(g["config"])))
+    return sorted(out, key=lambda g: (order.get(g["condition"], 99), list(COLORS).index(g["config"].split(" ")[0])))
 
 
 def pct(v):
@@ -61,7 +62,7 @@ def bars(groups, metric, title, fmt=pct, maxv=1.0) -> str:
             tip = f"{cond} · {g['config']}: {fmt(g[metric])}"
             parts.append(
                 f'<g><title>{html.escape(tip)}</title>'
-                f'<rect x="{label_w}" y="{y + 3}" width="{w:.1f}" height="{row_h - 6}" rx="4" fill="{COLORS[g["config"]]}"/>'
+                f'<rect x="{label_w}" y="{y + 3}" width="{w:.1f}" height="{row_h - 6}" rx="4" fill="{COLORS[g["config"].split(" ")[0]]}"/>'
                 f'<text x="{label_w + w + 6:.1f}" y="{y + 15}" class="val">{fmt(g[metric])}</text></g>')
             y += row_h
         y += 10
@@ -73,7 +74,7 @@ def bars(groups, metric, title, fmt=pct, maxv=1.0) -> str:
 def legend(groups) -> str:
     cfgs = list(dict.fromkeys(g["config"] for g in groups))
     return '<ul class="legend">' + "".join(
-        f'<li><span style="background:{COLORS[c]}"></span>{html.escape(c)}</li>' for c in cfgs) + "</ul>"
+        f'<li><span style="background:{COLORS[c.split(" ")[0]]}"></span>{html.escape(c)}</li>' for c in cfgs) + "</ul>"
 
 
 def table(groups) -> str:
