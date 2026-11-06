@@ -137,6 +137,19 @@ Open <http://127.0.0.1:8000>, press **Start listening**, and put the call on spe
 
 Open the printed `https://<laptop-ip>:8443/?t=<token>` link on a **second** phone (or tablet) on the same Wi-Fi, accept the self-signed certificate warning, and place it next to the call phone's speaker. “Add to Home screen” gives a shortcut, and the token is remembered on that device.
 
+### Android app (APK)
+
+`android/` is a small native wrapper (one Java activity, no third-party libraries) around the same page. It adds what a browser tab lacks: an installed icon, mic permission granted once, the screen kept on, and **certificate pinning** instead of a browser warning. On first connect it shows the laptop certificate's SHA-256 fingerprint; `python -m app.serve` prints the same fingerprint, and the app trusts only that certificate. API keys stay on the laptop.
+
+```powershell
+cd android
+./gradlew.bat assembleDebug     # needs JDK 17+ and the Android SDK (platform 36), via ANDROID_HOME or sdk.dir in local.properties
+# -> android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk   # or copy the APK to the phone and open it
+```
+
+Open the app, paste the link printed by `app.serve`, compare the fingerprint, and tap **Trust**. Press Back on the main page to change the laptop link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
+
 ### Check the API connection (a few credits)
 
 ```bash
@@ -246,6 +259,7 @@ app/
 web/            index.html, app.js, styles.css, PWA manifest, service worker, icons, fonts (OFL)
 bench/          calls/*.yaml, seed.py, render.py, degrade.py, run.py, report.py
 tests/          pytest suite; every Gnani and Groq call is mocked
+android/        Android app: WebView wrapper with mic permission, keep-awake and certificate pinning
 docs/
   diagrams/     LaTeX/TikZ sources for the diagrams above + build.ps1
   img/          rendered SVG diagrams
@@ -262,7 +276,9 @@ The diagrams are LaTeX (TikZ) in the app's own colours. To rebuild them after a 
 
 - The non-Hindi lexicons, alert lines and benchmark scripts (ta, bn, kn, te, mr) are marked `needs_native_review` and should be checked by native speakers.
 - Speakerphone audio mixes both sides of the call. The tracker does not separate the caller from the elder, and the elder must stay silent during honeypot mode.
-- The self-signed certificate lets the phone use the mic but not install an offline app; a trusted certificate fixes that.
+- In a browser, the self-signed certificate lets the phone use the mic but not install an offline app. The Android app gives an installed app with pinned trust instead; a trusted certificate also fixes it.
+- `app.serve` renews its certificate every 25 days. The Android app then asks to trust the new fingerprint; an open page may need a reload (Back → Change laptop link → Connect) before listening works again.
+- The Android app is a debug build for sideloading; a Play Store release would need a signing key and a foreground service for listening with the screen off.
 - Speaker labels in reports come from automatic diarization and can be wrong.
 - Saavdhaan warns and points to the national cyber-crime helpline **1930**. It never blocks a call or acts for the user.
 
