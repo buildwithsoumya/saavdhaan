@@ -189,8 +189,9 @@ function connect() {
   sock.onclose = () => {
     if (!listening || sock !== ws) return; // an old socket closing after stop/start
     if (++failures > 5) {
+      toggle(); // stop first: toggle() resets the status line
       conn("सर्वर से नहीं जुड़ पा रहा · Cannot reach the server. Check the laptop and try again.");
-      return toggle();
+      return;
     }
     retry = Math.min(retry + 1, 5);
     conn("दोबारा जुड़ रहा है… · Reconnecting…");
