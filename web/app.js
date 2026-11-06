@@ -54,22 +54,28 @@ function setClip(blob, label) {
   $("enrol-save").disabled = !(clip && $("enrol-consent").checked);
 }
 async function recordClip() {
-  if (recorder) return recorder.stop();
+  if (recorder) return recorder.state === "recording" && recorder.stop();
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (err) { return ($("enrol-status").textContent = `माइक नहीं मिला · Microphone blocked: ${err.message}`); }
   const chunks = [], started = Date.now();
-  recorder = new MediaRecorder(stream);
+  try {
+    recorder = new MediaRecorder(stream);
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    return ($("enrol-status").textContent = `रिकॉर्डिंग नहीं हो सकती · Recording not supported: ${err.message}`);
+  }
   recorder.ondataavailable = (e) => chunks.push(e.data);
   const tick = setInterval(() => {
     const s = Math.round((Date.now() - started) / 1000);
     $("enrol-clip").textContent = `रिकॉर्डिंग… ${s}s · Recording… press again to stop`;
-    if (s >= 20) recorder?.stop();
+    if (s >= 20 && recorder?.state === "recording") recorder.stop();
   }, 250);
   recorder.onstop = () => {
     clearInterval(tick);
-    stream.getTracks().forEach((t) => t.stop());
     const secs = Math.round((Date.now() - started) / 1000);
+    if (secs < 5) $("enrol-status").textContent = "कम से कम 5 सेकंड बोलें · Please speak for at least 5 seconds";
+    stream.getTracks().forEach((t) => t.stop());
     setClip(new Blob(chunks, { type: recorder.mimeType }), `${secs}s रिकॉर्ड हुआ · recorded`);
     recorder = null;
     $("enrol-rec").textContent = "दोबारा रिकॉर्ड करें · Record again";
@@ -90,6 +96,8 @@ async function saveVoice() {
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
     store.set("voice", `family:${body.id}`);
+    $("enrol-name").value = "";
+    setClip(null, "कोई रिकॉर्डिंग नहीं · No recording yet");
     await loadVoices();
   } catch (err) {
     $("enrol-status").textContent = `नहीं हो पाया · Could not add voice: ${err.message}`;

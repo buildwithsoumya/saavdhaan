@@ -146,7 +146,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0):
 @app.post("/api/voices")
 async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False)):
     try:
-        return await enrol.enrol(await audio.read(), name, consent)
+        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent)
     except enrol.EnrolError as e:
         raise HTTPException(400, str(e))
     except gnani.GnaniError as e:
