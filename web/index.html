@@ -65,7 +65,26 @@
           <input id="record" type="checkbox">
           <span>रिपोर्ट के लिए कॉल रिकॉर्ड करें · Record this call for a report</span>
         </label>
-        <div id="enrol-slot"></div>
+        <fieldset class="enrol">
+          <legend>परिवार की आवाज़ जोड़ें · Add a family voice</legend>
+          <p class="hint">5–30 सेकंड बोलें, जैसे: “माँ, मैं हूँ। अगर कोई अनजान फ़ोन पर पैसे या OTP माँगे, तो फ़ोन काट देना और मुझे बताना।” · Speak 5–30 seconds in a quiet room.</p>
+          <label class="field">
+            <span>नाम · Name</span>
+            <input id="enrol-name" type="text" autocomplete="off" placeholder="जैसे · e.g. Rahul (beta)">
+          </label>
+          <div class="enrol-actions">
+            <button id="enrol-rec" class="btn" type="button">रिकॉर्ड करें · Record</button>
+            <label class="btn btn-quiet">फ़ाइल चुनें · Upload file<input id="enrol-file" class="sr" type="file" accept="audio/*"></label>
+          </div>
+          <p class="hint" id="enrol-clip" aria-live="polite">कोई रिकॉर्डिंग नहीं · No recording yet</p>
+          <label class="check">
+            <input id="enrol-consent" type="checkbox">
+            <span>मैं सहमति देता/देती हूँ कि मेरी आवाज़ से सिर्फ़ इस फ़ोन पर धोखे की चेतावनी बनाई जाए · I consent to my voice being cloned only to speak scam warnings on this device</span>
+          </label>
+          <button id="enrol-save" class="btn" type="button" disabled>आवाज़ जोड़ें · Save voice</button>
+          <p class="hint" id="enrol-status" aria-live="polite"></p>
+          <ul class="voices" id="voices"></ul>
+        </fieldset>
       </div>
     </details>
   </main>

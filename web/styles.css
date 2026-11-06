@@ -220,6 +220,31 @@ body.stamped .stamp { animation: stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
 .check { display: flex; gap: 12px; align-items: flex-start; font-weight: 600; }
 .check input { width: 28px; height: 28px; margin: 2px 0 0; accent-color: var(--ink); flex: none; }
 
+.enrol { display: grid; gap: 14px; margin: 0; padding: 16px; border: 2px solid var(--rule); border-radius: var(--radius); }
+.enrol legend { padding: 0 6px; font-weight: 700; }
+.hint { margin: 0; font-size: 1rem; color: var(--ink-soft); }
+.enrol-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 8px 18px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 1.05rem/1.2 var(--font);
+  cursor: pointer;
+}
+.btn:hover { background: #24365c; }
+.btn:disabled { border-color: var(--rule); background: var(--paper-deep); color: #50627d; cursor: not-allowed; }
+.btn-quiet { background: transparent; color: var(--ink); }
+.btn-quiet:hover { background: var(--paper-deep); }
+.btn-quiet:has(input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 3px; }
+.voices { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.voices li { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+
 @media (max-width: 700px) {
   body { font-size: 1.15rem; }
   .meta { order: 3; width: 100%; }
