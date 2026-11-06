@@ -26,7 +26,9 @@ const store = {
 
 let ws = null, ctx = null, mic = null, node = null;
 let listening = false, callId = null, retry = 0;
-let muted = false, lastSpeechEnd = null;
+let muted = false, lastSpeechEnd = null, failures = 0;
+const queue = []; // alert audio plays one clip at a time
+let playing = false;
 
 // ---- settings -------------------------------------------------------------
 async function loadVoices() {
@@ -167,14 +169,33 @@ const conn = (t) => ($("conn").textContent = t);
 
 // ---- alerts ---------------------------------------------------------------
 function playAlert(bytes) {
+  queue.push(bytes);
+  muted = true; // don't let our own warning be transcribed back into the tracker
+  if (!playing) playNext();
+}
+
+function playNext() {
+  const bytes = queue.shift();
+  if (!bytes) {
+    playing = false;
+    setTimeout(() => { if (!playing) muted = false; }, 400);
+    return;
+  }
+  playing = true;
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
-  muted = true; // don't let our own warning be transcribed back into the tracker
   audio.addEventListener("playing", () => {
     if (lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
-  const done = () => { URL.revokeObjectURL(url); setTimeout(() => (muted = false), 400); };
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    URL.revokeObjectURL(url);
+    playNext();
+  };
   audio.addEventListener("ended", done, { once: true });
+  audio.addEventListener("error", done, { once: true });
   audio.play().catch(done);
 }
 
@@ -226,13 +247,14 @@ function stopAudio() {
 // ---- socket ---------------------------------------------------------------
 function connect() {
   const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0") });
-  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
-  ws.binaryType = "arraybuffer";
+  const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
+  ws = sock;
+  sock.binaryType = "arraybuffer";
   conn("जुड़ रहा है… · Connecting…");
-  ws.onmessage = (e) => {
+  sock.onmessage = (e) => {
     if (e.data instanceof ArrayBuffer) return playAlert(e.data);
     const m = JSON.parse(e.data);
-    if (m.type === "ready") { retry = 0; conn("सुन रहा है · Listening"); renderStages(m.explain); renderLevel(m.explain.level); }
+    if (m.type === "ready") { retry = 0; failures = 0; conn("सुन रहा है · Listening"); renderStages(m.explain); renderLevel(m.explain.level); }
     else if (m.type === "speech_end") lastSpeechEnd = performance.now();
     else if (m.type === "transcript") {
       addLine(m.text, m.lang);
@@ -241,8 +263,13 @@ function connect() {
       renderLevel(m.explain.level);
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
-  ws.onclose = () => {
-    if (!listening) return;
+  sock.onclose = () => {
+    if (!listening || sock !== ws) return; // an old socket closing after stop/start
+    if (++failures > 5) {
+      toggle(); // stop first: toggle() resets the status line
+      conn("सर्वर से नहीं जुड़ पा रहा · Cannot reach the server. Check the laptop and try again.");
+      return;
+    }
     retry = Math.min(retry + 1, 5);
     conn("दोबारा जुड़ रहा है… · Reconnecting…");
     setTimeout(() => listening && connect(), 500 * retry);
@@ -266,6 +293,7 @@ async function toggle() {
     }
     listening = true;
     callId = crypto.randomUUID();
+    failures = 0;
     $("lines").innerHTML = "";
     $("latency").textContent = "—";
     connect();
