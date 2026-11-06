@@ -109,7 +109,9 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
   - **Consent:** the elder records their voice in Family settings and ticks a separate box: “This is my own voice. Saavdhaan may use it to talk to scam callers.” A voice enrolled only for warnings is never used to talk to callers. Without a consented own voice, Saavdhaan uses the neutral `Vasudha` voice, and it falls back to that voice if cloning fails mid-call.
   - **Rules enforced in code:** it never speaks digits or number words and never claims money was sent.
   - **The caller is never tipped off:** with honeypot allowed, warnings are screen-only (level stamp, stages, 1930 panel). Nothing is spoken that the call could pick up, including the L3 warning when the trap closes.
-  - **Proof for the elder:** once the caller has claimed authority, made a threat and asked for money, and Saavdhaan has replied at least 4 times, it stops. It then shows the caller's own words for each scam stage (“Authority: ‘I am an inspector from CBI…’”, “Money ask: ‘…transfer to the RBI safe account’”) and tells the elder to hang up and report to 1930.
+  - **A real conversation:** every turn it reads the caller's mood (it apologises and sounds frightened when they get angry), answers what they just said, and asks for one detail it does not have yet. A separate fast model runs in parallel to record each fact the caller reveals: name, department, badge or case number, office, bank, account holder, UPI ID or account, app or link. The persona therefore never asks for the same thing twice. Set `HONEYPOT_PERSONA` to match the voice (default `elderly woman`).
+  - **It closes the trap itself:** once the caller has claimed authority, made a threat and asked for money, and has revealed a money trail (bank, account holder, UPI or app), the persona answers the next line with a believable goodbye ("my battery is dying, I'll try again soon"), so the caller suspects nothing. The call also stops after 12 replies even without a money trail.
+  - **Proof for the elder:** the screen shows the facts the caller revealed and their own words for each scam stage, and tells the elder to hang up and report to 1930. Everything is also saved to `data/honeypot/<call>.json`.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
 - **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
 
@@ -202,6 +204,7 @@ Try a negative such as `"Never share your OTP with anyone"`: it stays at 0.
 | `ALERT_VOICE` | Timbre v3.0 voice for warnings (default `Shivani`) |
 | `APP_TOKEN` | Access token for API, WebSocket and reports; required by `app.serve` |
 | `GROQ_API_KEY`, `GROQ_MODEL` | LLM for honeypot replies (default `openai/gpt-oss-120b`) |
+| `HONEYPOT_PERSONA` | Who the honeypot plays, so the words match the voice (default `elderly woman`; e.g. `elderly man`) |
 | `HONEYPOT_VOICE` | Timbre v3.0 voice for honeypot mode when the elder has not chosen their own consented voice (default `Vasudha`) |
 
 Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs live in `data/`, which is gitignored.

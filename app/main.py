@@ -35,6 +35,8 @@ class Call:
     honeypot: bool = False
     history: list = field(default_factory=list)  # honeypot chat: caller = user, persona = assistant
     persona_busy: bool = False
+    evidence: dict = field(default_factory=dict)  # what the caller revealed during honeypot
+    closing: bool = False  # evidence is in: the persona's next line ends the call
 
 
 CALLS: dict[str, Call] = {}
@@ -113,13 +115,16 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if state.honeypot == on:
             return
         state.honeypot = on
+        state.closing = False
         if not on and state.history:  # evidence log first, the browser may already be gone
-            log = Path(settings.data_dir) / "honeypot" / f"{call}.json"
-            log.parent.mkdir(parents=True, exist_ok=True)
-            log.write_text(json.dumps(state.history, ensure_ascii=False, indent=1), encoding="utf-8")
+            path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"history": state.history, "evidence": state.evidence},
+                                       ensure_ascii=False, indent=1), encoding="utf-8")
         msg = {"type": "honeypot", "on": on, "reason": reason}
-        if reason == "evidence":  # show the elder the caller's own words for each scam stage
+        if reason == "evidence":  # show the elder what the caller revealed and their own words per scam stage
             msg["proof"] = honeypot.proof(state.tracker)
+            msg["facts"] = honeypot.facts(state.evidence)
         await send(msg)
         level = state.tracker.level()
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
@@ -143,7 +148,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         try:
             while state.honeypot and state.history and state.history[-1]["role"] == "user":
                 asked = state.history[-1]["content"]
-                line = await honeypot.reply(state.history, lang)
+                line = await honeypot.reply(state.history, lang, state.evidence, state.closing)
                 if not state.honeypot:
                     return
                 if state.history[-1]["content"] != asked:
@@ -164,9 +169,12 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 state.history.append({"role": "assistant", "content": line})  # only lines actually spoken
                 await send({"type": "say", "text": line})
                 await send(audio)
-                exchanges = sum(m["role"] == "assistant" for m in state.history)
-                if honeypot.evidence_complete(state.tracker, exchanges):
+                if state.closing:  # that was the goodbye: the elder now sees the proof
                     await set_honeypot(False, "evidence", lang)
+                    return
+                exchanges = sum(m["role"] == "assistant" for m in state.history)
+                # evidence in: answer the caller's next line with a natural goodbye, not a sudden silence
+                state.closing = honeypot.evidence_complete(state.tracker, exchanges, state.evidence)
         finally:
             state.persona_busy = False
 
