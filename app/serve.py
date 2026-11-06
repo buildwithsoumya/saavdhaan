@@ -56,5 +56,5 @@ if __name__ == "__main__":
     ip = lan_ip()
     key, cert = ensure_cert(ip)
     print(f"\n  Open on the phone:  https://{ip}:{PORT}/?t={settings.app_token}\n"
-          "  (accept the certificate warning once, then 'Add to Home screen')\n")
+          "  (accept the certificate warning once, then 'Add to Home screen' for a shortcut)\n")
     uvicorn.run("app.main:app", host="0.0.0.0", port=PORT, ssl_keyfile=str(key), ssl_certfile=str(cert))

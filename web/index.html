@@ -38,6 +38,19 @@
       <a id="report-link" href="#" target="_blank" rel="noopener noreferrer" hidden>रिपोर्ट खोलें · Open report</a>
     </p>
 
+    <section class="honeypot" id="honeypot" hidden aria-live="polite">
+      <div id="hp-offer">
+        <p class="hp-lead"><span lang="hi">Saavdhaan इन्हें बातों में उलझाए रखे?</span> <span lang="en">Let Saavdhaan keep the caller talking?</span></p>
+        <p class="hint">फ़ोन स्पीकर पर रहने दें, आप दूर हो जाएँ और कुछ न बोलें। यह कोई असली जानकारी नहीं देगा। · Keep the call on speaker, step away and stay silent. It never gives out any real details.</p>
+        <button id="hp-start" class="btn" type="button">बात संभालने दें · Let Saavdhaan talk</button>
+      </div>
+      <div id="hp-live" hidden>
+        <p class="hp-lead"><span lang="hi">Saavdhaan बात कर रहा है। आप चुप रहें।</span> <span lang="en">Saavdhaan is talking. Stay silent.</span></p>
+        <button id="hp-stop" class="btn btn-quiet" type="button">बंद करें · Stop</button>
+      </div>
+      <p class="hp-done" id="hp-done" hidden>सबूत मिल गया। अब फ़ोन काटें और 1930 पर रिपोर्ट करें। · Enough evidence. Hang up now and report to 1930.</p>
+    </section>
+
     <section class="helpline" id="helpline" hidden>
       <p class="helpline-lead"><span lang="hi">फ़ोन काटें। मदद के लिए कॉल करें</span> <span lang="en">Hang up. Call for help</span></p>
       <p class="helpline-number">1930</p>
@@ -67,6 +80,10 @@
         <label class="field">
           <span>परिवार का संपर्क · Family contact <small>(सिर्फ़ दिखाने के लिए · shown on screen only)</small></span>
           <input id="family" type="text" autocomplete="off" placeholder="नाम और नंबर · Name and number">
+        </label>
+        <label class="check">
+          <input id="hp-allow" type="checkbox">
+          <span>धोखे वाली कॉल पर Saavdhaan को बात करने की अनुमति दें (हनीपॉट) · Allow honeypot mode on scam calls</span>
         </label>
         <label class="check">
           <input id="record" type="checkbox">

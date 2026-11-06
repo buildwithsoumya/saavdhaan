@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, enrol, gnani, report
+from app import alerts, enrol, gnani, honeypot, report
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -30,6 +30,9 @@ class Call:
     alerted: int = 0
     pcm: bytearray = field(default_factory=bytearray)
     socket: WebSocket | None = None  # the browser connection currently serving this call
+    honeypot: bool = False
+    history: list = field(default_factory=list)  # honeypot chat: caller = user, persona = assistant
+    persona_busy: bool = False
 
 
 CALLS: dict[str, Call] = {}
@@ -98,6 +101,59 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         except Exception:
             pass
 
+    def spawn(coro):
+        task = asyncio.create_task(coro)
+        alert_tasks.add(task)
+        task.add_done_callback(alert_tasks.discard)
+
+    async def set_honeypot(on: bool, reason: str, lang=None):
+        if state.honeypot == on:
+            return
+        state.honeypot = on
+        if not on and state.history:  # evidence log first, the browser may already be gone
+            log = Path(settings.data_dir) / "honeypot" / f"{call}.json"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(json.dumps(state.history, ensure_ascii=False, indent=1), encoding="utf-8")
+        await send({"type": "honeypot", "on": on, "reason": reason})
+        level = state.tracker.level()
+        if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
+            state.alerted = level
+            spawn(play_alert(level, lang))
+
+    async def persona_loop(lang):
+        """Answer the caller one reply at a time, always to everything said since the last reply."""
+        failures = 0
+        try:
+            while state.honeypot and state.history and state.history[-1]["role"] == "user":
+                asked = state.history[-1]["content"]
+                line = await honeypot.reply(state.history, lang)
+                if not state.honeypot:
+                    return
+                if state.history[-1]["content"] != asked:
+                    continue  # the caller said more meanwhile: answer all of it instead
+                try:
+                    audio = await gnani.tts(line, voice=settings.honeypot_voice,
+                                            language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
+                except Exception as e:
+                    failures += 1
+                    await send({"type": "error", "message": f"honeypot voice failed: {e}"})
+                    if failures >= 2:
+                        await set_honeypot(False, "error", lang)
+                        return
+                    continue
+                if not state.honeypot:
+                    return
+                if state.history[-1]["content"] != asked:
+                    continue
+                state.history.append({"role": "assistant", "content": line})  # only lines actually spoken
+                await send({"type": "say", "text": line})
+                await send(audio)
+                exchanges = sum(m["role"] == "assistant" for m in state.history)
+                if honeypot.evidence_complete(state.tracker, exchanges):
+                    await set_honeypot(False, "evidence", lang)
+        finally:
+            state.persona_busy = False
+
     async def play_alert(level, lang):
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
@@ -121,11 +177,17 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             if state.tracker.take_follow_signal():
                 await stream.update_keyterms(keyterms("extraction"))
                 await send({"type": "info", "message": "keyterms switched to extraction stage"})
-            if level > state.alerted:
+            if level > state.alerted and not state.honeypot:  # the caller would hear a spoken alert
                 state.alerted = level
-                task = asyncio.create_task(play_alert(level, lang))
-                alert_tasks.add(task)
-                task.add_done_callback(alert_tasks.discard)
+                spawn(play_alert(level, lang))
+            if state.honeypot:
+                if state.history and state.history[-1]["role"] == "user":
+                    state.history[-1]["content"] += " " + msg["text"]  # caller kept talking: one turn
+                else:
+                    state.history.append({"role": "user", "content": msg["text"]})
+                if not state.persona_busy:
+                    state.persona_busy = True  # set before spawning: two transcripts in one tick start one loop
+                    spawn(persona_loop(lang))
         elif kind == "error":
             await send({"type": "error", "message": msg.get("message", "STT error")})
 
@@ -153,11 +215,22 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                     continue
                 if cmd.get("type") == "stop":
                     break
+                if cmd.get("type") == "honeypot":
+                    if not cmd.get("on"):
+                        await set_honeypot(False, "user")
+                    elif not settings.groq_api_key:
+                        await send({"type": "error", "message": "honeypot needs GROQ_API_KEY"})
+                    elif state.tracker.level() < 2:
+                        await send({"type": "error", "message": "honeypot is only allowed once the call is L2 or higher"})
+                    else:
+                        await set_honeypot(True, "user")
     except WebSocketDisconnect:
         pass
     finally:
         for t in list(alert_tasks):
             t.cancel()
+        if state.socket in (ws, None):  # an old socket closing must not end a reconnected call's honeypot
+            await set_honeypot(False, "ended")
         if state.socket is ws:
             state.socket = None
         if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops

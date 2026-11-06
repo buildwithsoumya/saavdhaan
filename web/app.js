@@ -39,7 +39,7 @@ const api = (path, opts) => fetch(withToken(path), opts);
 
 let ws = null, ctx = null, mic = null, node = null, wakeLock = null;
 let listening = false, callId = null, retry = 0;
-let muted = false, lastSpeechEnd = null, failures = 0;
+let muted = false, lastSpeechEnd = null, failures = 0, alertPending = false, level = 0, honeypotOn = false;
 const queue = []; // alert audio plays one clip at a time
 let playing = false;
 
@@ -136,6 +136,8 @@ function initSettings() {
   };
   $("family").value = store.get("family", "");
   $("family").oninput = (e) => store.set("family", e.target.value);
+  $("hp-allow").checked = store.get("hp-allow", "0") === "1";
+  $("hp-allow").onchange = (e) => { store.set("hp-allow", e.target.checked ? "1" : "0"); renderHoneypot(); };
   $("record").checked = store.get("record", "0") === "1";
   $("record").onchange = (e) => store.set("record", e.target.checked ? "1" : "0");
 }
@@ -156,29 +158,40 @@ function renderStages(explain) {
   }).join("");
 }
 
-function renderLevel(level) {
-  const L = LEVELS[level];
-  if (document.body.dataset.level !== String(level)) {
+function renderLevel(lvl) {
+  const L = LEVELS[lvl];
+  level = lvl;
+  if (document.body.dataset.level !== String(lvl)) {
     document.body.classList.remove("stamped");
     void document.body.offsetWidth; // restart the stamp animation
     document.body.classList.add("stamped");
   }
-  document.body.dataset.level = level;
+  document.body.dataset.level = lvl;
   $("status-hi").textContent = L.hi;
   $("status-en").textContent = L.en;
-  $("status-level").textContent = `L${level}`;
+  $("status-level").textContent = `L${lvl}`;
   $("advice").innerHTML = `<span lang="hi">${L.advice[0]}</span> <span lang="en">${L.advice[1]}</span>`;
-  $("helpline").hidden = level < 3;
+  $("helpline").hidden = lvl < 3;
   const family = store.get("family", "").trim();
   $("family-line").hidden = !family;
   $("family-line").textContent = family ? `या परिवार को फ़ोन करें · Or call family: ${family}` : "";
+  renderHoneypot();
 }
 
-function addLine(text, lang) {
+function renderHoneypot() {
+  const allowed = store.get("hp-allow", "0") === "1";
+  const done = !$("hp-done").hidden;
+  $("honeypot").hidden = !(allowed && listening && (level >= 2 || honeypotOn || done));
+  $("hp-offer").hidden = honeypotOn || done;
+  $("hp-live").hidden = !honeypotOn;
+}
+
+function addLine(text, lang, persona = false) {
   const lines = $("lines");
   lines.querySelector(".empty")?.remove();
   const li = document.createElement("li");
-  li.textContent = text;
+  li.textContent = persona ? `Saavdhaan: ${text}` : text;
+  if (persona) li.className = "persona";
   if (lang) li.lang = lang.split("-")[0];
   lines.append(li);
   while (lines.children.length > 40) lines.firstChild.remove();
@@ -190,6 +203,8 @@ const conn = (t) => ($("conn").textContent = t);
 
 // ---- alerts ---------------------------------------------------------------
 function playAlert(bytes) {
+  bytes.isAlert = alertPending; // persona replies play too, but only alerts count for latency
+  alertPending = false;
   queue.push(bytes);
   muted = true; // don't let our own warning be transcribed back into the tracker
   if (!playing) playNext();
@@ -205,8 +220,9 @@ function playNext() {
   playing = true;
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
+  const isAlert = bytes.isAlert;
   audio.addEventListener("playing", () => {
-    if (lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
+    if (isAlert && lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
   let finished = false;
   const done = () => {
@@ -298,9 +314,19 @@ function connect() {
       if (m.lang) $("lang").textContent = LANGS[m.lang.split("-")[0]] || m.lang;
       renderStages(m.explain);
       renderLevel(m.explain.level);
+    } else if (m.type === "alert") alertPending = true;
+    else if (m.type === "say") addLine(m.text, null, true);
+    else if (m.type === "honeypot") {
+      honeypotOn = m.on;
+      $("hp-done").hidden = m.reason !== "evidence";
+      renderHoneypot();
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
   sock.onclose = (e) => {
+    if (sock === ws && honeypotOn) { // the server ends honeypot mode when the socket drops
+      honeypotOn = false;
+      renderHoneypot();
+    }
     if (e.code === 4401 && sock === ws) {
       if (listening) toggle();
       conn("ऐप का लिंक गलत है · Wrong app link: open the link with ?t= once");
@@ -340,12 +366,15 @@ async function toggle() {
     }
     listening = true;
     callId = crypto.randomUUID();
+    honeypotOn = false;
+    $("hp-done").hidden = true;
     failures = 0;
     $("lines").innerHTML = "";
     $("latency").textContent = "—";
     connect();
   }
   document.body.dataset.listening = listening;
+  renderHoneypot();
   btn.setAttribute("aria-pressed", listening);
   $("listen-label").textContent = listening ? "सुनना बंद करें · Stop listening" : "सुनना शुरू करें · Start listening";
 }
@@ -378,6 +407,8 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((err) => console.warn("offline app shell unavailable:", err));
 }
 $("report").onclick = makeReport;
+$("hp-start").onclick = () => ws?.send(JSON.stringify({ type: "honeypot", on: true }));
+$("hp-stop").onclick = () => ws?.send(JSON.stringify({ type: "honeypot", on: false }));
 renderStages(null);
 renderLevel(0);
 $("listen").onclick = toggle;
