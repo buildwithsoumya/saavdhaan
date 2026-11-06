@@ -155,3 +155,44 @@ def test_alert_audio_is_tagged_and_cached(monkeypatch, tmp_path):
     assert len(calls) == 1
     text, voice, language = calls[0]
     assert text.startswith("<shouting>") and "<pauses>" in text and language == "ta-IN"
+
+
+def test_call_id_must_be_safe(client):
+    from starlette.websockets import WebSocketDisconnect
+    with pytest.raises(WebSocketDisconnect) as e:
+        with client.websocket_connect("/ws?call=../../evil&record=1") as ws:
+            ws.receive_text()
+    assert e.value.code == 1008 and not FakeStream.instances
+
+
+def test_failed_alert_is_retried_on_next_transcript(client, monkeypatch):
+    attempts = []
+
+    async def flaky_audio(level, code, voice=None):
+        attempts.append(level)
+        if len(attempts) == 1:
+            raise TimeoutError("tts timed out")
+        return b"WAV"
+
+    monkeypatch.setattr(alerts, "alert_audio", flaky_audio)
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai"), said("police case")]
+    with client.websocket_connect("/ws?call=r1") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        assert "alert audio failed" in receive_until(ws, "error")["message"]
+        ws.send_bytes(b"\0" * 1024)
+        assert receive_until(ws, "alert")["level"] == 1
+        ws.send_text("not json")  # ignored
+        ws.send_text(json.dumps({"type": "stop"}))
+    assert attempts == [1, 1]
+
+
+def test_reconnect_replaces_the_previous_socket(client):
+    with client.websocket_connect("/ws?call=dup") as first:
+        receive_until(first, "ready")
+        with client.websocket_connect("/ws?call=dup") as second:
+            receive_until(second, "ready")
+            assert first.receive()["type"] == "websocket.close"  # old browser socket closed
+            assert main.CALLS["dup"].socket is not None

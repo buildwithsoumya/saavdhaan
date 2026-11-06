@@ -96,3 +96,40 @@ def test_family_voice_used_for_l2_untagged_with_fallbacks(data, monkeypatch):
     # a deleted voice also falls back
     enrol.delete(v["id"])
     assert asyncio.run(alerts.alert_audio(2, "ta-IN", fam)) == b"TIMBRE"
+
+
+def test_oversized_upload_rejected_before_ffmpeg(data):
+    with pytest.raises(enrol.EnrolError, match="too large"):
+        asyncio.run(enrol.enrol(b"\0" * (enrol.MAX_UPLOAD_BYTES + 1), "Rahul", consent=True))
+    with pytest.raises(enrol.EnrolError, match="5-30 seconds"):
+        asyncio.run(enrol.enrol(wav_of(45), "Rahul", consent=True))  # long files are cut at 31 s, then refused
+    assert data == []
+
+
+def test_delete_purges_cloned_audio_and_bad_files_are_skipped(data, monkeypatch, tmp_path):
+    v = asyncio.run(enrol.enrol(wav_of(8), "Rahul", consent=True))
+
+    async def fake_vc(text, embedding):
+        return b"VC"
+
+    monkeypatch.setattr(gnani, "vc_tts", fake_vc)
+    assert asyncio.run(alerts.alert_audio(2, "hi-IN", f"family:{v['id']}")) == b"VC"
+    assert any(enrol.cache_dir(v["id"]).iterdir())
+    (tmp_path / "embeddings" / "0123456789ab.json").write_text("{half", encoding="utf-8")
+    assert enrol.voices() == [v] and enrol.load("0123456789ab") is None
+    enrol.delete(v["id"])
+    assert not enrol.cache_dir(v["id"]).exists()
+
+
+def test_voice_clone_network_error_falls_back_to_timbre(data, monkeypatch):
+    v = asyncio.run(enrol.enrol(wav_of(8), "Rahul", consent=True))
+
+    async def broken_vc(text, embedding):
+        raise TimeoutError("vc timed out")
+
+    async def fake_tts(text, voice, language):
+        return b"TIMBRE"
+
+    monkeypatch.setattr(gnani, "vc_tts", broken_vc)
+    monkeypatch.setattr(gnani, "tts", fake_tts)
+    assert asyncio.run(alerts.alert_audio(2, "hi-IN", f"family:{v['id']}")) == b"TIMBRE"
