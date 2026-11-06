@@ -6,10 +6,15 @@ Phones only allow the microphone on HTTPS pages. This makes a self-signed
 certificate for this machine's LAN address (the phone will warn once; choose
 "proceed"), and refuses to start without APP_TOKEN so nobody else on the
 network can spend API credits through it.
+
+Listening works after "proceed". Chrome does not run service workers on a page
+with a certificate warning, so "Add to Home screen" gives a shortcut rather
+than an offline-capable app unless the phone trusts the certificate.
 """
 import shutil
 import socket
 import subprocess
+import time
 from pathlib import Path
 
 import uvicorn
@@ -36,7 +41,8 @@ def ensure_cert(ip: str) -> tuple[Path, Path]:
     d = Path(settings.data_dir) / "tls"
     d.mkdir(parents=True, exist_ok=True)
     key, cert = d / f"{ip}.key", d / f"{ip}.crt"
-    if not cert.exists():
+    stale = cert.exists() and time.time() - cert.stat().st_mtime > 25 * 86400  # certs last 30 days
+    if not cert.exists() or stale:
         openssl = shutil.which("openssl") or (str(GIT_OPENSSL) if GIT_OPENSSL.exists() else None)
         if not openssl:
             raise SystemExit("openssl not found (it ships with Git for Windows)")

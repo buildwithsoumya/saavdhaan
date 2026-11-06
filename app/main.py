@@ -6,6 +6,7 @@ Browsers cannot set WebSocket headers, so the API key lives only here.
 import asyncio
 import hmac
 import json
+import re
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,13 +29,19 @@ class Call:
     tracker: Tracker = field(default_factory=Tracker)
     alerted: int = 0
     pcm: bytearray = field(default_factory=bytearray)
+    socket: WebSocket | None = None  # the browser connection currently serving this call
 
 
 CALLS: dict[str, Call] = {}
+MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
+CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
 def token_ok(token: str | None) -> bool:
-    return not settings.app_token or hmac.compare_digest(token or "", settings.app_token)
+    if not settings.app_token:
+        return True
+    # bytes compare: compare_digest rejects non-ASCII str, which would turn a junk token into a 500
+    return hmac.compare_digest((token or "").encode(), settings.app_token.encode())
 
 
 @app.middleware("http")
@@ -60,25 +67,42 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 
 @app.websocket("/ws")
 async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = ""):
+    await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
     if not token_ok(token):
         await ws.close(code=4401)
         return
-    await ws.accept()
-    state = CALLS.setdefault(call, Call())
+    if not CALL_ID.fullmatch(call):  # the id becomes a file name for recordings
+        await ws.close(code=1008)
+        return
+    state = CALLS.pop(call, None) or Call()
+    CALLS[call] = state  # most recently used last
+    while len(CALLS) > MAX_CALLS:
+        CALLS.pop(next(iter(CALLS)))
+    if state.socket is not None:  # a reconnect while the old socket is half-dead: one stream per call
+        try:
+            await state.socket.close()
+        except Exception:
+            pass
+    state.socket = ws
     send_lock = asyncio.Lock()
     alert_tasks = set()
 
     async def send(payload):
-        async with send_lock:
-            if isinstance(payload, bytes):
-                await ws.send_bytes(payload)
-            else:
-                await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
+        try:
+            async with send_lock:
+                if isinstance(payload, bytes):
+                    await ws.send_bytes(payload)
+                else:
+                    await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
 
     async def play_alert(level, lang):
         try:
             audio = await alerts.alert_audio(level, lang, voice or None)
-        except gnani.GnaniError as e:
+        except Exception as e:  # network, cache or synthesis failure: let the next transcript retry
+            state.alerted = min(state.alerted, level - 1)
             await send({"type": "error", "message": f"alert audio failed: {e}"})
             return
         await send({"type": "alert", "level": level, "text": alerts.alert_text(level, lang)})
@@ -122,20 +146,29 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 await stream.send_audio(msg["bytes"])
                 if record:
                     state.pcm += msg["bytes"]
-            elif msg.get("text") and json.loads(msg["text"]).get("type") == "stop":
-                break
+            elif msg.get("text"):
+                try:
+                    cmd = json.loads(msg["text"])
+                except ValueError:
+                    continue
+                if cmd.get("type") == "stop":
+                    break
     except WebSocketDisconnect:
         pass
     finally:
+        for t in list(alert_tasks):
+            t.cancel()
+        if state.socket is ws:
+            state.socket = None
+        if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops
+            await asyncio.to_thread(save_recording, call, bytes(state.pcm))
         await stream.close()
-        if record and state.pcm:
-            save_recording(call, bytes(state.pcm))
 
 
 @app.post("/api/voices")
 async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False)):
     try:
-        return await enrol.enrol(await audio.read(), name, consent)
+        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent)
     except enrol.EnrolError as e:
         raise HTTPException(400, str(e))
     except gnani.GnaniError as e:
@@ -154,21 +187,32 @@ def delete_voice(voice_id: str):
     return {"deleted": voice_id}
 
 
+REPORTS_IN_FLIGHT: set[str] = set()
+
+
 def _call_file(folder: str, call_id: str, ext: str) -> Path:
-    if not call_id.replace("-", "").isalnum():
+    if not CALL_ID.fullmatch(call_id):
         raise HTTPException(400, "bad call id")
     return Path(settings.data_dir) / folder / f"{call_id}.{ext}"
 
 
 @app.post("/api/report/{call_id}")
 async def make_report(call_id: str):
+    out = _call_file("reports", call_id, "html")
     wav = _call_file("calls", call_id, "wav")
+    if out.exists():  # batch STT costs credits: one report per call
+        return {"url": f"/reports/{call_id}"}
     if not wav.exists():
         raise HTTPException(404, "this call was not recorded (recording is opt-in)")
+    if call_id in REPORTS_IN_FLIGHT:
+        raise HTTPException(409, "the report is already being made")
+    REPORTS_IN_FLIGHT.add(call_id)
     try:
         await report.build(wav)
-    except gnani.GnaniError as e:
-        raise HTTPException(502, f"transcription failed: {e}")
+    except Exception as e:  # ffmpeg, network, batch failure: always a readable JSON error
+        raise HTTPException(502, f"report failed: {e}")
+    finally:
+        REPORTS_IN_FLIGHT.discard(call_id)
     return {"url": f"/reports/{call_id}"}
 
 
@@ -177,7 +221,8 @@ def get_report(call_id: str):
     path = _call_file("reports", call_id, "html")
     if not path.exists():
         raise HTTPException(404, "no report yet")
-    return FileResponse(path)
+    return FileResponse(path, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+                                       "Referrer-Policy": "no-referrer"})
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

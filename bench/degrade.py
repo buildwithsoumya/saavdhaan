@@ -8,7 +8,9 @@ phone_dropout  phone line with random 20-60 ms dropouts (about one every 2 s)
 
 Noise is synthetic: ffmpeg's `anoisesrc` pink noise with a fixed seed, so no
 recorded audio is involved. SNR uses ffmpeg `volumedetect` mean levels over the
-whole file (gaps included), so it is approximate.
+whole file (gaps included) and is applied before the 300-3400 Hz band-pass, which
+removes much of the pink noise's low end, so in-band SNR during speech is higher
+than the label. Treat the labels as relative noise levels.
 """
 import random
 import re
@@ -59,7 +61,8 @@ def mean_db(path) -> float:
 
 def noise_mean_db(duration_s) -> float:
     r = subprocess.run(["ffmpeg", "-hide_banner", "-f", "lavfi", "-i",
-                        f"anoisesrc=color=pink:amplitude=0.5:seed={NOISE_SEED}:duration={duration_s:.2f}",
+                        f"anoisesrc=color=pink:amplitude=0.5:seed={NOISE_SEED}:duration={duration_s:.2f}"
+                        ":sample_rate=16000",
                         "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True)
     return float(re.search(r"mean_volume: (-?[\d.]+) dB", r.stderr).group(1))
 

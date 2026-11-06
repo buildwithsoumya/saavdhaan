@@ -39,7 +39,9 @@ const api = (path, opts) => fetch(withToken(path), opts);
 
 let ws = null, ctx = null, mic = null, node = null, wakeLock = null;
 let listening = false, callId = null, retry = 0;
-let muted = false, lastSpeechEnd = null;
+let muted = false, lastSpeechEnd = null, failures = 0;
+const queue = []; // alert audio plays one clip at a time
+let playing = false;
 
 // ---- settings -------------------------------------------------------------
 async function loadVoices() {
@@ -65,22 +67,28 @@ function setClip(blob, label) {
   $("enrol-save").disabled = !(clip && $("enrol-consent").checked);
 }
 async function recordClip() {
-  if (recorder) return recorder.stop();
+  if (recorder) return recorder.state === "recording" && recorder.stop();
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (err) { return ($("enrol-status").textContent = `माइक नहीं मिला · Microphone blocked: ${err.message}`); }
   const chunks = [], started = Date.now();
-  recorder = new MediaRecorder(stream);
+  try {
+    recorder = new MediaRecorder(stream);
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    return ($("enrol-status").textContent = `रिकॉर्डिंग नहीं हो सकती · Recording not supported: ${err.message}`);
+  }
   recorder.ondataavailable = (e) => chunks.push(e.data);
   const tick = setInterval(() => {
     const s = Math.round((Date.now() - started) / 1000);
     $("enrol-clip").textContent = `रिकॉर्डिंग… ${s}s · Recording… press again to stop`;
-    if (s >= 20) recorder?.stop();
+    if (s >= 20 && recorder?.state === "recording") recorder.stop();
   }, 250);
   recorder.onstop = () => {
     clearInterval(tick);
-    stream.getTracks().forEach((t) => t.stop());
     const secs = Math.round((Date.now() - started) / 1000);
+    if (secs < 5) $("enrol-status").textContent = "कम से कम 5 सेकंड बोलें · Please speak for at least 5 seconds";
+    stream.getTracks().forEach((t) => t.stop());
     setClip(new Blob(chunks, { type: recorder.mimeType }), `${secs}s रिकॉर्ड हुआ · recorded`);
     recorder = null;
     $("enrol-rec").textContent = "दोबारा रिकॉर्ड करें · Record again";
@@ -101,6 +109,8 @@ async function saveVoice() {
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("enrol-status").textContent = `${body.name} की आवाज़ जुड़ गई · voice added`;
     store.set("voice", `family:${body.id}`);
+    $("enrol-name").value = "";
+    setClip(null, "कोई रिकॉर्डिंग नहीं · No recording yet");
     await loadVoices();
   } catch (err) {
     $("enrol-status").textContent = `नहीं हो पाया · Could not add voice: ${err.message}`;
@@ -180,14 +190,33 @@ const conn = (t) => ($("conn").textContent = t);
 
 // ---- alerts ---------------------------------------------------------------
 function playAlert(bytes) {
+  queue.push(bytes);
+  muted = true; // don't let our own warning be transcribed back into the tracker
+  if (!playing) playNext();
+}
+
+function playNext() {
+  const bytes = queue.shift();
+  if (!bytes) {
+    playing = false;
+    setTimeout(() => { if (!playing) muted = false; }, 400);
+    return;
+  }
+  playing = true;
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
-  muted = true; // don't let our own warning be transcribed back into the tracker
   audio.addEventListener("playing", () => {
     if (lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
-  const done = () => { URL.revokeObjectURL(url); setTimeout(() => (muted = false), 400); };
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    URL.revokeObjectURL(url);
+    playNext();
+  };
   audio.addEventListener("ended", done, { once: true });
+  audio.addEventListener("error", done, { once: true });
   audio.play().catch(done);
 }
 
@@ -218,8 +247,12 @@ registerProcessor("pcm16k", Pcm16k);`;
 // A phone that turns its screen off stops the mic; keep it awake while listening.
 async function keepAwake(on) {
   try {
-    if (on && "wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
-    else { await wakeLock?.release(); wakeLock = null; }
+    if (on) {
+      if ("wakeLock" in navigator && !(wakeLock && !wakeLock.released)) wakeLock = await navigator.wakeLock.request("screen");
+    } else {
+      await wakeLock?.release();
+      wakeLock = null;
+    }
   } catch {}
 }
 document.addEventListener("visibilitychange", () => listening && document.visibilityState === "visible" && keepAwake(true));
@@ -251,13 +284,14 @@ function stopAudio() {
 function connect() {
   const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
     token: store.get("token", "") });
-  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
-  ws.binaryType = "arraybuffer";
+  const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
+  ws = sock;
+  sock.binaryType = "arraybuffer";
   conn("जुड़ रहा है… · Connecting…");
-  ws.onmessage = (e) => {
+  sock.onmessage = (e) => {
     if (e.data instanceof ArrayBuffer) return playAlert(e.data);
     const m = JSON.parse(e.data);
-    if (m.type === "ready") { retry = 0; conn("सुन रहा है · Listening"); renderStages(m.explain); renderLevel(m.explain.level); }
+    if (m.type === "ready") { retry = 0; failures = 0; conn("सुन रहा है · Listening"); renderStages(m.explain); renderLevel(m.explain.level); }
     else if (m.type === "speech_end") lastSpeechEnd = performance.now();
     else if (m.type === "transcript") {
       addLine(m.text, m.lang);
@@ -266,12 +300,18 @@ function connect() {
       renderLevel(m.explain.level);
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
-  ws.onclose = (e) => {
-    if (e.code === 4401) {
+  sock.onclose = (e) => {
+    if (e.code === 4401 && sock === ws) {
+      if (listening) toggle();
       conn("ऐप का लिंक गलत है · Wrong app link: open the link with ?t= once");
-      return toggle();
+      return;
     }
-    if (!listening) return;
+    if (!listening || sock !== ws) return; // an old socket closing after stop/start
+    if (++failures > 5) {
+      toggle(); // stop first: toggle() resets the status line
+      conn("सर्वर से नहीं जुड़ पा रहा · Cannot reach the server. Check the laptop and try again.");
+      return;
+    }
     retry = Math.min(retry + 1, 5);
     conn("दोबारा जुड़ रहा है… · Reconnecting…");
     setTimeout(() => listening && connect(), 500 * retry);
@@ -288,6 +328,8 @@ async function toggle() {
     conn("सुन नहीं रहा · Not listening");
     $("report-row").hidden = store.get("record", "0") !== "1";
     $("report-link").hidden = true;
+    $("report").disabled = false;
+    $("report").textContent = "कॉल की रिपोर्ट बनाएँ · Make call report";
   } else {
     $("report-row").hidden = true;
     try {
@@ -298,6 +340,7 @@ async function toggle() {
     }
     listening = true;
     callId = crypto.randomUUID();
+    failures = 0;
     $("lines").innerHTML = "";
     $("latency").textContent = "—";
     connect();
@@ -312,8 +355,13 @@ async function makeReport() {
   btn.disabled = true;
   btn.textContent = "रिपोर्ट बन रही है (1–2 मिनट)… · Making report…";
   try {
-    const r = await api(`/api/report/${callId}`, { method: "POST" });
-    const body = await r.json();
+    let r;
+    for (let attempt = 0; attempt < 3; attempt++) { // the recording is saved as the call closes
+      r = await api(`/api/report/${callId}`, { method: "POST" });
+      if (r.status !== 404) break;
+      await new Promise((ok) => setTimeout(ok, 1500));
+    }
+    const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.detail || r.statusText);
     $("report-link").href = withToken(body.url);
     $("report-link").hidden = false;
@@ -326,8 +374,10 @@ async function makeReport() {
 }
 
 initSettings();
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch((err) => console.warn("offline app shell unavailable:", err));
+}
 $("report").onclick = makeReport;
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 renderStages(null);
 renderLevel(0);
 $("listen").onclick = toggle;
