@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_token: str = ""
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
+    honeypot_persona: str = "elderly woman"  # who the honeypot plays; match the voice, e.g. "elderly man"
     honeypot_voice: str = "Vasudha"  # neutral Timbre v3 persona, used unless the elder chose their own consented voice
 
 

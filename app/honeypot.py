@@ -9,6 +9,8 @@ Hard rules, enforced in code and not only in the prompt:
 - never agree that money was sent
 - replies are short, plain speech, no tags
 """
+import asyncio
+import json
 import logging
 import re
 
@@ -25,13 +27,13 @@ transport: httpx.AsyncBaseTransport | None = None  # tests swap in httpx.MockTra
 LANG_NAMES = {"hi": "Hindi", "en": "English", "ta": "Tamil", "bn": "Bengali", "kn": "Kannada", "te": "Telugu",
               "mr": "Marathi", "gu": "Gujarati", "ml": "Malayalam", "pa": "Punjabi"}
 
-SYSTEM = """You are the elderly person who received this phone call, speaking in your own voice. You are slow,
+SYSTEM = """You are the {persona} who received this phone call, speaking in your own voice. You are slow,
 polite, worried and a little confused. The caller is a scammer, but they must never suspect that you know:
 sound scared and willing to cooperate, and believe what they say.
 
 Your goal is to keep them talking and make them reveal, one detail at a time, evidence for a police complaint:
 their full name, the department or company they claim, their badge, ID or case number, the police station or
-office, the reason they give, exactly where they want money sent (bank name, account holder, UPI ID, app),
+office, exactly where they want money sent (bank name, account holder, UPI ID, app),
 and any links or apps they push.
 
 How to talk:
@@ -51,7 +53,33 @@ Rules you must never break:
 - Never install anything; say the phone is old and the app is not downloading.
 - Ask one simple question back in most replies, to make them explain more.
 - Reply in {language}, in plain spoken words only, one or two short sentences (under 25 words).
-- No stage directions, brackets, emojis or tags. Never mention being a program or a recording."""
+- No stage directions, brackets, emojis or tags. Never mention being a program or a recording.
+
+Read the caller's mood every turn. If they are angry, shouting or threatening, apologise, sound frightened and
+obedient, and calm them down before your question. If they are impatient, say you are doing it right now.
+Never argue, never accuse them, never sound suspicious.
+Sound like a real, frightened person, not a form: begin every reply with a short natural reaction to exactly what
+they just said (shock, fear, apology, relief), in everyday words, then ask your one question.
+
+What the caller has revealed so far (never ask for these again; use them back to sound cooperative):
+{known}
+Still missing (ask for the most natural one next, one per turn):
+{missing}
+If the caller ignored your last question, do not ask it again right away: ask about a different missing item.
+Keep the same gender in every reply as in your earlier replies.
+
+Answer only with a JSON object:
+{{"mood": "calm|impatient|angry|threatening|friendly",
+  "evidence": {{<any of the fields below that the caller revealed in the conversation, as they said it>}},
+  "reply": "<what you say next, following every rule above>"}}
+Evidence fields: {fields}"""
+
+# what the persona tries to get the caller to reveal; kept for the whole call and shown to the elder
+EVIDENCE = {
+    "name": "Caller's name", "department": "Department or company", "badge_or_case": "Badge, ID or case number",
+    "office": "Police station or office", "bank": "Bank",
+    "account_holder": "Account holder", "upi_or_account": "UPI ID or account", "app_or_link": "App or link",
+}
 
 STALL = {
     "hi": "एक मिनट बेटा, मेरा चश्मा नहीं मिल रहा। आप अपना नाम फिर से बताइए?",
@@ -62,6 +90,30 @@ STALL = {
     "te": "ఒక్క నిమిషం, నా కళ్ళద్దాలు కనిపించడం లేదు. మీ పేరు మళ్ళీ చెప్పండి?",
     "mr": "एक मिनिट, माझा चष्मा सापडत नाही. तुमचं नाव पुन्हा सांगा?",
 }
+
+STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
+    "hi": ["अरे रुकिए साहब, फ़ोन की आवाज़ कट रही है। आप किस बैंक की बात कर रहे थे?",
+           "माफ़ कीजिए, मैं बहुत घबरा गई हूँ। आप धीरे से फिर बताइए, पैसा किसके नाम पर भेजना है?",
+           "जी साहब, बैंक वाला ऐप खुल ही नहीं रहा। आप अपना पूरा नाम और विभाग बता दीजिए।"],
+    "en": ["Sorry sir, the line is breaking. Which bank did you say?",
+           "Please don't be angry, I am very scared. Whose name is the account in?",
+           "The bank app is still loading. Can you tell me your full name and department again?"],
+}
+FALLBACK_MODEL = "openai/gpt-oss-20b"
+EXTRACT_MODEL = "qwen/qwen3.8-27b"  # fast, separate quota; runs alongside the reply so it adds no delay
+PAYMENT = ("bank", "account_holder", "upi_or_account", "app_or_link")  # the money trail a complaint needs
+MAX_EXCHANGES = 12  # with authority, threat and a money ask on record, stop even without a money trail
+
+CLOSING = """
+
+You now have enough. End the call in this reply, naturally and without any suspicion: a believable everyday
+reason to hang up now (the battery is dying, you are leaving for the bank, someone is at the door) and that you
+will continue soon. Sound cooperative and grateful. Ask nothing. Put this goodbye in "reply"."""
+
+EXTRACT = """A suspected scammer said this on a phone call:
+"{line}"
+Extract only facts the caller stated about these fields: {fields}.
+Answer only with a JSON object mapping field names to the caller's exact words. Leave out anything not stated."""
 
 DIGITS = re.compile(r"\d")  # \d covers every script's digits
 NUMBER_WORDS = [  # spelled-out digits: two or more in a row could read out an OTP
@@ -93,10 +145,17 @@ def safe(reply: str, code: str | None) -> str:
     return text
 
 
-def evidence_complete(tracker: Tracker, exchanges: int) -> bool:
-    """Authority claimed, threat made, money asked, and enough conversation recorded."""
-    act = tracker.active()
-    return exchanges >= MIN_EXCHANGES and {"S1", "S2", "S5"} <= act.keys()
+def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = None) -> bool:
+    """Authority claimed, threat made, money asked, enough conversation, and (when the caller's facts are
+    tracked) a money trail: where they wanted the money sent. A long call stops anyway at MAX_EXCHANGES."""
+    if exchanges < MIN_EXCHANGES or not {"S1", "S2", "S5"} <= tracker.active().keys():
+        return False
+    return evidence is None or any(k in evidence for k in PAYMENT) or exchanges >= MAX_EXCHANGES
+
+
+def facts(evidence: dict) -> list[dict]:
+    """What the caller revealed, labelled, in a fixed order: shown to the elder as proof."""
+    return [{"label": label, "value": evidence[k]} for k, label in EVIDENCE.items() if k in evidence]
 
 
 def proof(tracker: Tracker) -> list[dict]:
@@ -106,20 +165,94 @@ def proof(tracker: Tracker) -> list[dict]:
             for s, hs in sorted(tracker.active().items())]
 
 
-async def reply(history: list[dict], code: str | None) -> str:
-    """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant."""
+def system_prompt(lang: str, evidence: dict, closing: bool = False) -> str:
+    def shown(v):  # a value the persona might echo must not carry a number, or safe() turns the reply into a stall
+        return "given (contains a number: never say it)" if DIGITS.search(v) or NUMBER_RUN.search(v) else v
+    known = "\n".join(f"- {EVIDENCE[k]}: {shown(v)}" for k, v in evidence.items() if k in EVIDENCE) or "- nothing yet"
+    missing = "\n".join(f"- {label}" for k, label in EVIDENCE.items() if k not in evidence) or "- nothing: keep them talking"
+    prompt = SYSTEM.format(language=LANG_NAMES[lang], known=known, missing=missing, fields=", ".join(EVIDENCE),
+                           persona=settings.honeypot_persona)
+    return prompt + (CLOSING if closing else "")
+
+
+def parse(content: str, evidence: dict) -> str:
+    """The spoken line from the model's JSON; revealed facts are merged into `evidence`.
+    Plain text (a model ignoring the format) is taken as the line itself; broken JSON is never spoken."""
+    content = content or ""
+    if "{" not in content:
+        return content
+    try:
+        data = json.loads(content[content.index("{"):content.rindex("}") + 1])  # tolerate text around the object
+    except ValueError:
+        return ""  # half a JSON object read aloud would give the game away: stall instead
+    if not isinstance(data, dict):
+        return content
+    merge(data.get("evidence"), evidence)
+    return data.get("reply") if isinstance(data.get("reply"), str) else ""
+
+
+def merge(found, evidence: dict) -> None:
+    for k, v in (found.items() if isinstance(found, dict) else ()):
+        if k in EVIDENCE and isinstance(v, str) and v.strip() and k not in evidence:
+            evidence[k] = v.strip()[:120]  # first answer wins: a later "I told you!" never overwrites it
+
+
+async def extract(c: httpx.AsyncClient, line: str, evidence: dict) -> None:
+    """Record what the caller just revealed. Separate from the reply: one model doing both forgets facts."""
+    body = {"model": EXTRACT_MODEL, "temperature": 0, "max_tokens": 300, "reasoning_effort": "none",
+            "response_format": {"type": "json_object"},
+            "messages": [{"role": "user", "content": EXTRACT.format(line=line, fields=", ".join(EVIDENCE))}]}
+    try:
+        r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+        r.raise_for_status()
+        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence)
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
+        log.warning("honeypot evidence extraction failed: %s", e)  # the reply still goes out
+
+
+async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False) -> str:
+    """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant.
+    `evidence` is the call's running record of what the caller revealed; it is updated in place.
+    `closing`: the evidence is in, so this line ends the call naturally."""
     lang = lang_of(code)
+    evidence = {} if evidence is None else evidence
     # room for a reasoning model's thinking; the spoken reply itself is capped by safe()
-    body = {"model": settings.groq_model, "temperature": 0.8, "max_tokens": 600,
-            "messages": [{"role": "system", "content": SYSTEM.format(language=LANG_NAMES[lang])}, *history[-16:]]}
+    # no strict JSON mode: Groq rejects the whole reply when the model drifts into plain speech; parse() copes
+    body = {"model": settings.groq_model, "temperature": 0.8, "max_tokens": 700,
+            "messages": [{"role": "system", "content": system_prompt(lang, evidence, closing)}, *history[-16:]]}
     if "gpt-oss" in settings.groq_model:
         body["reasoning_effort"] = "low"  # fast replies on a live call
+
+    async def ask(c):
+        # each Groq model has its own tokens-per-minute quota: a fast caller can exhaust one mid-call
+        for model in dict.fromkeys([settings.groq_model, FALLBACK_MODEL]):
+            r = await c.post(GROQ_URL, json={**body, "model": model},
+                             headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+            if r.status_code != 429:
+                break
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
     try:
         async with httpx.AsyncClient(timeout=15, transport=transport) as c:
-            r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
-        r.raise_for_status()
-        return safe(r.json()["choices"][0]["message"]["content"], code)
+            caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
+            # return_exceptions: a failed reply must not leave the extraction running against a closed client
+            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence) if caller else asyncio.sleep(0),
+                                              return_exceptions=True)
+        if isinstance(content, BaseException):
+            raise content
+        line = safe(parse(content, evidence), code)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
-        # a failing model must be visible: otherwise every turn silently becomes the same stall line
+        # a failing model must be visible: otherwise every turn silently becomes a stall line
         log.warning("honeypot reply failed, stalling instead: %s %s", e, getattr(getattr(e, "response", None), "text", "")[:200])
-        return STALL.get(lang, STALL["hi"])  # never leave the caller in silence
+        line = STALL.get(lang, STALL["hi"])  # never leave the caller in silence
+    return fresh_stall(line, lang, history)
+
+
+def fresh_stall(line: str, lang: str, history: list[dict]) -> str:
+    """A stall line the caller has not just heard: the same sentence twice would sound like a recording."""
+    variants = [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])]
+    if line not in variants:
+        return line
+    recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
+    return next((v for v in variants if v not in recent), line)

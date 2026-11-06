@@ -146,6 +146,10 @@ body.stamped .stamp { animation: stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
 .proof ol { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 8px; }
 .proof li { padding: 8px 10px; border-left: 4px solid var(--stop); background: var(--stop-wash); border-radius: 4px; }
 .proof b { display: block; color: var(--stop); }
+.facts { margin: 0 0 12px; display: grid; gap: 6px; }
+.facts div { display: grid; grid-template-columns: minmax(8em, 40%) 1fr; gap: 8px; padding: 6px 10px; background: var(--paper-deep); border-radius: 4px; }
+.facts dt { margin: 0; font-weight: 700; color: var(--ink-soft); }
+.facts dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .lines .persona { color: var(--ink-soft); font-style: italic; }
 
 /* ---- 1930 ---- */

@@ -29,18 +29,49 @@ def test_evidence_needs_authority_threat_money_and_turns():
     assert honeypot.evidence_complete(tr, honeypot.MIN_EXCHANGES)
 
 
+def test_closing_needs_a_money_trail_or_a_long_call():
+    tr = Tracker()
+    tr.feed("CBI officer, arrest warrant hai, UPI se transfer karo")
+    n = honeypot.MIN_EXCHANGES
+    assert not honeypot.evidence_complete(tr, n, {"name": "Verma"})  # no idea where the money goes yet
+    assert honeypot.evidence_complete(tr, n, {"upi_or_account": "x@ybl"})
+    assert honeypot.evidence_complete(tr, honeypot.MAX_EXCHANGES, {})
+
+
+def test_numbers_in_known_facts_are_hidden_from_the_persona():
+    prompt = honeypot.system_prompt("hi", {"name": "Verma", "upi_or_account": "rbi4@ybl", "badge_or_case": "चार सात एक"})
+    assert "Verma" in prompt and "rbi4@ybl" not in prompt and "चार सात एक" not in prompt
+    assert prompt.count("never say it") == 2
+
+
+def test_parse_takes_the_reply_records_facts_and_never_speaks_broken_json():
+    ev = {"name": "Verma"}
+    content = 'ok {"mood": "angry", "evidence": {"name": "Sharma", "bank": "PNB", "x": "y"}, "reply": "Ji sahab, kaunsi branch?"}'
+    assert honeypot.parse(content, ev) == "Ji sahab, kaunsi branch?"
+    assert ev == {"name": "Verma", "bank": "PNB"}  # first answer kept, unknown fields dropped
+    assert honeypot.parse('{"reply": "half', ev) == ""
+    assert honeypot.parse("Ji sahab", ev) == "Ji sahab"
+
+
 def test_groq_request_and_failure_fallback(monkeypatch):
     seen = {}
 
     def handler(req):
+        body = json.loads(req.content)
+        if body["model"] == honeypot.EXTRACT_MODEL:  # the parallel fact-recording request
+            seen["extract"] = body
+            return httpx.Response(200, json={"choices": [{"message": {"content": '{"bank": "PNB", "name": ""}'}}]})
         seen["auth"] = req.headers["authorization"]
-        seen["body"] = json.loads(req.content)
+        seen["body"] = body
         return httpx.Response(200, json={"choices": [{"message": {"content": "Aapka naam kya hai sahab?"}}]})
 
     monkeypatch.setattr(honeypot.settings, "groq_api_key", "gk")
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(handler))
     history = [{"role": "user", "content": "OTP batao"}]
-    assert asyncio.run(honeypot.reply(history, "hi-IN")) == "Aapka naam kya hai sahab?"
+    evidence = {}
+    assert asyncio.run(honeypot.reply(history, "hi-IN", evidence)) == "Aapka naam kya hai sahab?"  # plain text works
+    assert evidence == {"bank": "PNB"}  # empty values are not recorded
+    assert "OTP batao" in seen["extract"]["messages"][0]["content"]
     assert seen["auth"] == "Bearer gk" and seen["body"]["model"] == honeypot.settings.groq_model
     system = seen["body"]["messages"][0]
     assert system["role"] == "system" and "Hindi" in system["content"] and "Never say any number" in system["content"]
@@ -66,8 +97,10 @@ def client(monkeypatch):
         tts_calls.append((text, voice, language))
         return b"PERSONA"
 
-    async def fake_reply(history, code):
-        return f"reply {len(history)}"
+    async def fake_reply(history, code, evidence=None, closing=False):
+        if evidence is not None and "UPI" in history[-1]["content"]:
+            evidence["upi_or_account"] = "x@upi"  # stands in for the extraction step
+        return f"{'bye' if closing else 'reply'} {len(history)}"
 
     monkeypatch.setattr(alerts, "alert_audio", fake_alert)
     monkeypatch.setattr(gnani, "tts", fake_tts)
@@ -80,7 +113,7 @@ def client(monkeypatch):
 def test_honeypot_flow(client, tmp_path):
     FakeStream.script = [said("CBI se inspector bol raha hoon"), said("arrest warrant hai, kisi ko mat batana"),
                          said("kaun bol raha hai?"), said("UPI se transfer karo"), said("jaldi karo"),
-                         said("abhi bhejo")]
+                         said("abhi bhejo"), said("sun rahi ho?")]
     with client.websocket_connect("/ws?call=hp1") as ws:
         receive_until(ws, "ready")
         ws.send_text(json.dumps({"type": "honeypot", "on": True}))
@@ -97,6 +130,8 @@ def test_honeypot_flow(client, tmp_path):
             replies.append(receive_until(ws, "say")["text"])
             assert receive_until(ws, "audio") == b"PERSONA"
         assert replies == ["reply 1", "reply 3", "reply 5", "reply 7"]
+        ws.send_bytes(b"\0" * 1024)  # evidence is in: the next line is a natural goodbye, then proof
+        assert receive_until(ws, "say")["text"] == "bye 9"
         done = receive_until(ws, "honeypot")
         assert {k: done[k] for k in ("type", "on", "reason")} == {"type": "honeypot", "on": False, "reason": "evidence"}
         # proof for the elder: the caller's own first line for each stage heard
@@ -106,8 +141,10 @@ def test_honeypot_flow(client, tmp_path):
         ws.send_text(json.dumps({"type": "stop"}))
     assert client.alert_calls == [2, 3]  # L3 held back while the persona talked, played when it stopped
     assert {v for _, v, _ in client.tts_calls} == {main.settings.honeypot_voice}
+    assert done["facts"] == [{"label": "UPI ID or account", "value": "x@upi"}]
     log = json.loads((tmp_path / "honeypot" / "hp1.json").read_text(encoding="utf-8"))
-    assert [m["role"] for m in log] == ["user", "assistant"] * 4
+    assert [m["role"] for m in log["history"]] == ["user", "assistant"] * 5
+    assert log["evidence"] == {"upi_or_account": "x@upi"}
 
 
 def run_one_persona_turn(client, call, hpvoice):
@@ -208,7 +245,7 @@ def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
-    async def slow_reply(history, code):
+    async def slow_reply(history, code, *rest):
         await gate.wait()
         return "too late"
 
@@ -234,7 +271,7 @@ def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
 def test_words_said_during_a_reply_get_answered(client, monkeypatch):
     replies = []
 
-    async def reply(history, code):
+    async def reply(history, code, *rest):
         replies.append(history[-1]["content"])
         if len(replies) == 1:  # the caller keeps talking while the first reply is being written
             history[-1]["content"] += " aur jaldi"

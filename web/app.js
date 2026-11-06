@@ -199,10 +199,11 @@ function renderHoneypot() {
 }
 
 const STAGE_HI = Object.fromEntries(STAGES.map(([id, hi]) => [id, hi]));
-function renderProof(items) {
+function renderProof(items, facts = []) {
+  $("hp-facts").innerHTML = facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join("");
   $("hp-proof-list").innerHTML = items.map((p) =>
     `<li><b>${STAGE_HI[p.stage] || ""} · ${esc(p.name)}: “${esc(p.phrase)}”</b>${esc(p.said)}</li>`).join("");
-  $("hp-proof").hidden = items.length === 0;
+  $("hp-proof").hidden = items.length === 0 && facts.length === 0;
 }
 
 function addLine(text, lang, persona = false) {
@@ -343,7 +344,7 @@ function connect() {
     else if (m.type === "honeypot") {
       honeypotOn = m.on;
       $("hp-done").hidden = m.reason !== "evidence";
-      if (m.proof) renderProof(m.proof);
+      if (m.proof) renderProof(m.proof, m.facts);
       renderHoneypot();
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
