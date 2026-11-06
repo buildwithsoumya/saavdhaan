@@ -276,7 +276,8 @@ The diagrams are LaTeX (TikZ) in the app's own colours. To rebuild them after a 
 
 - The non-Hindi lexicons, alert lines and benchmark scripts (ta, bn, kn, te, mr) are marked `needs_native_review` and should be checked by native speakers.
 - Speakerphone audio mixes both sides of the call. The tracker does not separate the caller from the elder, and the elder must stay silent during honeypot mode.
-- In a browser, the self-signed certificate lets the phone use the mic but not install an offline app; the Android app or a trusted certificate fixes that.
+- In a browser, the self-signed certificate lets the phone use the mic but not install an offline app. The Android app gives an installed app with pinned trust instead; a trusted certificate also fixes it.
+- `app.serve` renews its certificate every 25 days. The Android app then asks to trust the new fingerprint; an open page may need a reload (Back → Change laptop link → Connect) before listening works again.
 - The Android app is a debug build for sideloading; a Play Store release would need a signing key and a foreground service for listening with the screen off.
 - Speaker labels in reports come from automatic diarization and can be wrong.
 - Saavdhaan warns and points to the national cyber-crime helpline **1930**. It never blocks a call or acts for the user.

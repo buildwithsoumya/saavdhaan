@@ -3,6 +3,7 @@ package com.saavdhaan.app;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -10,6 +11,7 @@ import android.graphics.Color;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.net.http.SslError;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -17,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
@@ -33,6 +36,8 @@ import android.widget.TextView;
 
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Saavdhaan listener app: a full-screen WebView on the laptop backend started with
@@ -40,18 +45,21 @@ import java.security.cert.X509Certificate;
  * browser tab lacks: an installed icon, mic permission without prompts on every visit,
  * the screen kept on, and trust in the backend's self-signed certificate.
  *
- * Certificate trust is pinned on first use: the app shows the certificate's SHA-256
- * fingerprint, which app.serve also prints, and only proceeds for that exact certificate.
+ * Certificate trust is pinned per laptop on first use: the app shows the certificate's
+ * SHA-256 fingerprint, which app.serve also prints, and only proceeds for that exact
+ * certificate. Everything is limited to the exact origin (scheme, host, port) pasted in.
  */
 public class MainActivity extends Activity {
-    private static final String PREFS = "saavdhaan", KEY_URL = "url", KEY_PIN = "pin";
+    private static final String PREFS = "saavdhaan", KEY_URL = "url", KEY_PIN = "pin:";
     private static final int ASK_MIC = 1;
     private static final int INK = Color.rgb(0x15, 0x23, 0x3f), PAPER = Color.rgb(0xd9, 0xe7, 0xef);
 
     private SharedPreferences prefs;
     private FrameLayout root;
     private WebView web;
+    private Uri origin;                 // the backend: scheme + host + port of the pasted link
     private PermissionRequest pendingMic;
+    private AlertDialog sslDialog;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -60,15 +68,27 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); // the mic stops if the screen sleeps
         root = new FrameLayout(this);
         root.setBackgroundColor(INK);
-        root.setOnApplyWindowInsetsListener((v, insets) -> { // targetSdk 35+ draws edge to edge
-            Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return WindowInsets.CONSUMED;
-        });
+        root.setOnApplyWindowInsetsListener(this::padForSystemBars); // targetSdk 35+ draws edge to edge
         setContentView(root);
+        if (Build.VERSION.SDK_INT >= 33) { // predictive back: onBackPressed is not called on targetSdk 36
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
+        }
         String url = prefs.getString(KEY_URL, null);
         if (url == null) showSetup(null);
         else openApp(url);
+    }
+
+    @SuppressWarnings("deprecation")
+    private WindowInsets padForSystemBars(View v, WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            Insets b = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+            v.setPadding(b.left, b.top, b.right, b.bottom);
+            return WindowInsets.CONSUMED;
+        }
+        v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+        return insets.consumeSystemWindowInsets();
     }
 
     // ---- setup: paste the link printed by `python -m app.serve` -------------------------
@@ -99,7 +119,7 @@ public class MainActivity extends Activity {
         go.setOnClickListener(v -> {
             String url = link.getText().toString().trim();
             Uri u = Uri.parse(url);
-            if (!"https".equals(u.getScheme()) || u.getHost() == null || u.getQueryParameter("t") == null) {
+            if (!"https".equalsIgnoreCase(u.getScheme()) || u.getHost() == null || u.getQueryParameter("t") == null) {
                 err.setText("लिंक https://…:8443/?t=… जैसा होना चाहिए · The link must look like https://…:8443/?t=…");
                 return;
             }
@@ -117,11 +137,16 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
+    /** Leave the WebView's own callbacks before tearing it down. */
+    private void showSetupLater(String problem) {
+        root.post(() -> showSetup(problem));
+    }
+
     // ---- the guardian page ------------------------------------------------------------------
     private void openApp(String url) {
         destroyWeb();
         root.removeAllViews();
-        String host = Uri.parse(url).getHost();
+        origin = Uri.parse(url);
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -132,17 +157,21 @@ public class MainActivity extends Activity {
             @Override
             public void onPermissionRequest(PermissionRequest req) {
                 runOnUiThread(() -> {
-                    boolean ours = host.equals(req.getOrigin().getHost());
-                    boolean mic = java.util.Arrays.asList(req.getResources())
-                            .contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
-                    if (!ours || !mic) { req.deny(); return; }
+                    boolean mic = Arrays.asList(req.getResources()).contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
+                    if (!sameOrigin(req.getOrigin()) || !mic) { req.deny(); return; }
                     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                         req.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
-                    } else {
-                        pendingMic = req;
-                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, ASK_MIC);
+                        return;
                     }
+                    if (pendingMic != null) pendingMic.deny(); // never leave an older request hanging
+                    pendingMic = req;
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, ASK_MIC);
                 });
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest req) {
+                if (req == pendingMic) pendingMic = null;
             }
         });
 
@@ -151,29 +180,34 @@ public class MainActivity extends Activity {
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 X509Certificate cert = error.getCertificate().getX509Certificate();
                 String fp = cert == null ? null : fingerprint(cert);
-                if (fp == null || !host.equals(Uri.parse(error.getUrl()).getHost())) {
+                if (fp == null || !sameOrigin(Uri.parse(error.getUrl()))) {
                     handler.cancel();
                     return;
                 }
-                if (fp.equals(prefs.getString(KEY_PIN, ""))) {
+                String pinKey = KEY_PIN + originKey(origin);
+                if (fp.equals(prefs.getString(pinKey, ""))) {
                     handler.proceed();
                     return;
                 }
-                boolean renewed = prefs.contains(KEY_PIN);
-                new AlertDialog.Builder(MainActivity.this)
+                if (sslDialog != null && sslDialog.isShowing()) { // one question at a time
+                    handler.cancel();
+                    return;
+                }
+                boolean renewed = prefs.contains(pinKey);
+                sslDialog = new AlertDialog.Builder(MainActivity.this)
                         .setTitle(renewed ? "सर्वर का सर्टिफ़िकेट बदला है · Server certificate changed"
                                           : "इस लैपटॉप पर भरोसा करें? · Trust this laptop?")
                         .setMessage("Compare with the fingerprint printed by python -m app.serve:\n\n"
-                                + host + "\n\nSHA-256\n" + fp
+                                + origin.getHost() + "\n\nSHA-256\n" + fp
                                 + (renewed ? "\n\napp.serve renews its certificate every 25 days. If you did not restart it, do not trust this." : ""))
                         .setCancelable(false)
                         .setPositiveButton("भरोसा करें · Trust", (d, w) -> {
-                            prefs.edit().putString(KEY_PIN, fp).apply();
+                            prefs.edit().putString(pinKey, fp).apply();
                             handler.proceed();
                         })
                         .setNegativeButton("रद्द करें · Cancel", (d, w) -> {
                             handler.cancel();
-                            showSetup("सर्टिफ़िकेट पर भरोसा नहीं किया · Certificate not trusted");
+                            showSetupLater("सर्टिफ़िकेट पर भरोसा नहीं किया · Certificate not trusted");
                         })
                         .show();
             }
@@ -181,15 +215,22 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
-                if (host.equals(u.getHost())) return false; // the app and its reports stay inside
-                startActivity(new Intent(Intent.ACTION_VIEW, u)); // cybercrime.gov.in and the like
+                if (sameOrigin(u)) return false; // the app and its reports stay inside
+                String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.ROOT);
+                if (scheme.equals("http") || scheme.equals("https")) { // cybercrime.gov.in and the like
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, u));
+                    } catch (ActivityNotFoundException ignored) {
+                    }
+                }
                 return true;
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError e) {
-                if (req.isForMainFrame()) {
-                    showSetup("लैपटॉप से नहीं जुड़ पाया · Cannot reach the laptop: " + e.getDescription()
+                // a refused certificate is handled by the trust dialog, not reported as "cannot reach"
+                if (req.isForMainFrame() && e.getErrorCode() != WebViewClient.ERROR_FAILED_SSL_HANDSHAKE) {
+                    showSetupLater("लैपटॉप से नहीं जुड़ पाया · Cannot reach the laptop: " + e.getDescription()
                             + "\nSame Wi-Fi? Is python -m app.serve running? Did the laptop's IP change?");
                 }
             }
@@ -203,18 +244,27 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         if (code != ASK_MIC || pendingMic == null) return;
-        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-            pendingMic.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
-        } else {
-            pendingMic.deny();
-        }
+        PermissionRequest req = pendingMic;
         pendingMic = null;
+        try {
+            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+                req.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                req.deny();
+            }
+        } catch (IllegalStateException ignored) { // the page went away while Android was asking
+        }
     }
 
     @Override
     @SuppressWarnings("deprecation")
-    public void onBackPressed() {
-        if (web == null) { super.onBackPressed(); return; }
+    @android.annotation.SuppressLint("GestureBackNavigation")
+    public void onBackPressed() { // Android 12 and older; 13+ uses the callback registered in onCreate
+        handleBack();
+    }
+
+    private void handleBack() {
+        if (web == null) { finish(); return; }
         if (web.canGoBack()) { web.goBack(); return; }
         new AlertDialog.Builder(this)
                 .setItems(new String[]{"लैपटॉप बदलें · Change laptop link", "बंद करें · Close app"}, (d, which) -> {
@@ -232,10 +282,31 @@ public class MainActivity extends Activity {
 
     // ---- helpers ----------------------------------------------------------------------------
     private void destroyWeb() {
+        if (sslDialog != null) {
+            sslDialog.dismiss();
+            sslDialog = null;
+        }
+        if (pendingMic != null) {
+            try { pendingMic.deny(); } catch (IllegalStateException ignored) { }
+            pendingMic = null;
+        }
         if (web == null) return;
         root.removeView(web);
         web.destroy(); // releases the mic and closes the WebSocket
         web = null;
+    }
+
+    private static int port(Uri u) {
+        if (u.getPort() != -1) return u.getPort();
+        return "http".equalsIgnoreCase(u.getScheme()) ? 80 : 443;
+    }
+
+    private static String originKey(Uri u) {
+        return (u.getScheme() + "://" + u.getHost() + ":" + port(u)).toLowerCase(Locale.ROOT);
+    }
+
+    private boolean sameOrigin(Uri u) {
+        return origin != null && u != null && u.getHost() != null && originKey(u).equals(originKey(origin));
     }
 
     static String fingerprint(X509Certificate cert) {
