@@ -1,46 +1,113 @@
+<div align="center">
+
+<img src="web/icon.svg" width="88" alt="Saavdhaan icon: a tilted screen with a coral exclamation mark">
+
 # सावधान · Saavdhaan
 
 **A live scam-call guardian for elderly people in India, built on Gnani's speech APIs.**
 
-Saavdhaan listens to a phone call on speakerphone, transcribes it live in any of 10 Indian languages, follows the scam script as it unfolds (fake CBI, customs, courier, KYC, "your son is in an accident"), and steps in with a spoken warning in the caller's language before money leaves. The warning can come in the voice of the elder's own family member.
+It listens to a call on speakerphone, follows the scam script as it unfolds in any of 10 Indian languages,<br>
+and speaks a warning in the caller's language, or in a family member's voice, *before the money leaves*.
+
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-15233f?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-15233f?style=flat-square&logo=fastapi&logoColor=white)
+![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-93%20passing-17643a?style=flat-square)
+![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
+![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
+
+[How it works](#how-it-works) · [Screens](#the-guardian-page) · [Quick start](#quick-start) · [Testing](#testing-it-step-by-step) · [SaavdhaanBench](#saavdhaanbench) · [Project layout](#project-layout)
+
+<br>
+
+<img src="docs/screenshots/stop-hindi.png" width="66%" alt="Guardian page at level 3 Stop during a Hindi digital-arrest call: red STOP stamp, 1930 helpline panel, all five scam stages lit with the phrases heard, live transcript">
+&nbsp;
+<img src="docs/screenshots/mobile-stop.png" width="25%" alt="The same Stop state on a phone">
+
+<sub>A synthetic Hindi “digital arrest” call. Stage phrases and level come from the real tracker; Gnani streaming is not shown.</sub>
+
+</div>
+
+---
 
 Entry for Gnani AI's *Great Indian AI Internship Challenge*. All data in this repo is synthetic.
 
+## Why
+
+“Digital arrest” and impersonation scams follow a script: a fake CBI officer, a parcel full of drugs, an arrest warrant, *don't tell anyone, stay on the video call*, then a transfer to a “safe account”. Elderly people are the main target, and by the time family hears about it the money is gone.
+
+A keyword spotter fires on every bank call that says “OTP”. Saavdhaan follows the **whole kill chain** instead, explains *why* it is worried, ignores genuine advice like “never share your OTP”, and points to the national cyber-crime helpline **1930**. It never blocks a call or acts for the user.
+
 ## How it works
 
-```
- speakerphone call ──► phone/laptop mic ──► browser (16 kHz PCM) ──► backend ──► Gnani Prisma v3.0 realtime STT
-                                                                        │
-                       spoken warning ◄── Gnani Timbre v3.0 / voice clone ◄── kill-chain tracker
-```
+<p align="center"><img src="docs/img/architecture.svg" width="100%" alt="Architecture: a phone call on speaker reaches the listener device's microphone; the browser PWA streams 16 kHz PCM over a WebSocket to a FastAPI backend whose guardian bridge feeds SttStream, which talks to Gnani Prisma v3.0. Transcripts go to the Tracker; rising levels trigger Alerts synthesised by Gnani Timbre v3.0 and played back to the elder. Honeypot uses Groq and Timbre, Enrol uses Gnani voice clone, Report uses Gnani batch STT. YAML lexicons and a gitignored data folder sit underneath."></p>
+
+- **Phones can't share call audio with an app on the same phone**, so the guardian runs on a second device (a laptop, or an old phone or tablet) next to the call phone's speaker.
+- **The API key never reaches the browser.** Browsers can't set WebSocket headers, so the backend holds the Gnani key and bridges audio. API, WebSocket and report routes are protected by an access token.
+- **One call, one state.** The tracker lives on the backend under a call id. It survives browser reconnects and the 15-minute STT session cap; `SttStream` rotates sessions early and seeds each new one with `previous_text`.
 
 ### The scam kill chain
 
-Every digital-arrest and impersonation scam walks the same five steps. Saavdhaan tracks them instead of spotting single keywords:
+<p align="center"><img src="docs/img/killchain.svg" width="100%" alt="The five scam stages S1 Authority, S2 Fear, S3 Isolation, S4 Urgency and S5 Extraction with example phrases, the four alert levels L0 Safe to L3 Stop, the level rule written as a formula, and the negation guard with examples"></p>
 
 | Stage | What the caller does | Examples heard |
 |---|---|---|
-| S1 Authority | claims to be an official | CBI, police, customs, FedEx, TRAI, RBI, judge |
-| S2 Fear | threatens | arrest warrant, money laundering, drugs in parcel, account blocked |
-| S3 Isolation | cuts the victim off | don't tell anyone, stay on video call, don't cut the call |
-| S4 Urgency | removes time to think | right now, within two hours, otherwise arrest |
-| S5 Extraction | asks for money or details | transfer to safe account, OTP, UPI, AnyDesk, Aadhaar number |
+| **S1** Authority | claims to be an official | CBI, police, customs, FedEx, TRAI, RBI, judge |
+| **S2** Fear | threatens | arrest warrant, money laundering, drugs in parcel, account blocked |
+| **S3** Isolation | cuts the victim off | don't tell anyone, stay on video call, don't cut the call |
+| **S4** Urgency | removes time to think | right now, within two hours, otherwise arrest |
+| **S5** Extraction | asks for money or details | transfer to safe account, OTP, UPI, AnyDesk, Aadhaar number |
 
-- Each stage counts once in a rolling 10-minute window. The window survives reconnects and the 15-minute STT session cap.
+- Each stage counts once in a rolling 10-minute window.
 - **Alert levels:** L1 *Caution* = 2 stages, L2 *Saavdhaan* = 3 or more, L3 *Stop* = a money ask after authority or fear.
-- **Negation guard:** a genuine bank saying "never share your OTP" or "OTP किसी को मत बताइए" does not count as extraction. Reassurance like "don't worry, just tell me the OTP" still does.
+- **Negation guard:** a genuine bank saying “never share your OTP” or “OTP किसी को मत बताइए” does not count as extraction. Reassurance like “don't worry, just tell me the OTP” still does.
+- **Stage-following keyterms:** once S1 and S2 are heard, the STT keyterms switch mid-call to extraction words (OTP, UPI, AnyDesk…) so the money ask is transcribed accurately.
 - Lexicons are data (`app/data/lexicons.yaml`): a shared Latin loanword list (Prisma `codemix` keeps CBI, OTP, UPI in Latin) plus native-script lists for Hindi, English, Tamil, Bengali, Kannada, Telugu and Marathi.
-- Every alert shows *why*: the stages hit, the exact phrases and when they were said.
 
-### Features
+### One utterance, end to end
 
-- **Live guardian page.** A big postmark-style status (word + colour + level), five stage boxes with the phrases heard, live transcript, detected language, alert latency in ms, and a large **1930** helpline panel at L3. Labels are in Hindi and English, sized for an elderly reader.
-- **Spoken warnings** in hi, en, ta, bn, kn, te, mr with Timbre v3.0 audio tags (`<slow>`, `<whispers>`, `<shouting>`). Each line is synthesised once and cached, so repeat alerts are instant and free.
-- **Family voice.** A family member records 5–30 s (with explicit consent) and the L2 warning ("Listen, it's me. This is a fraud call. Hang up.") plays in their cloned voice. Deleting the voice removes the embedding and its cached audio.
-- **Stage-following keyterms.** Once authority and fear are heard, the STT keyterms switch mid-call to extraction words (OTP, UPI, AnyDesk…) so the money ask is transcribed accurately.
-- **Honeypot mode (opt-in).** At L2+, with family permission, Saavdhaan can answer the caller in a neutral persona voice while the elder steps away. It keeps the caller talking to collect evidence (name, "department", where money should go) using a Groq LLM. Code-enforced rules: it never speaks digits or number words and never claims money was sent. It stops when it has enough evidence and tells the elder to hang up and report.
-- **Post-call report (opt-in recording).** Batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu with placeholders for personal details.
-- **Phone app.** Installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
+<p align="center"><img src="docs/img/sequence.svg" width="100%" alt="Sequence diagram: the caller speaks; the browser streams PCM to the backend, which streams 1024-byte frames to Prisma; Prisma signals the utterance ended (the latency clock starts) and returns a transcript; the backend feeds the Tracker and sends the explanation to the browser; when S1 and S2 are active the backend switches keyterms; when the level rises the backend gets the alert line from Timbre (or its disk cache) and the browser plays it with the mic muted"></p>
+
+The page shows the latency from *end of speech* to *warning starts playing*. Each alert line is synthesised once per voice and cached on disk, so repeat alerts are instant and free.
+
+## The guardian page
+
+Built for an elderly reader: large type, Hindi and English side by side, level shown by word, colour and stamp together (never colour alone), and every alert shows *why*: the stages hit and the exact phrases heard.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/caution-english.png" alt="Level 1 Caution on an English courier-drugs call: authority and fear stages lit with fedex, customs, narcotics, drugs"></td>
+<td width="50%"><img src="docs/screenshots/safe-bank.png" alt="A genuine bank fraud-desk call stays at level 0 Safe even though OTP and CVV are mentioned, because they are negated"></td>
+</tr>
+<tr>
+<td><b>L1 Caution:</b> an English courier scam after two sentences. Authority and fear are lit, with the exact phrases.</td>
+<td><b>Hard negative stays Safe:</b> a real bank fraud desk says “never share your OTP or CVV”. The negation guard ignores it.</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="33%"><img src="docs/screenshots/mobile-honeypot.png" alt="Phone view: honeypot offer above the 1930 helpline panel with the family contact"></td>
+<td width="33%"><img src="docs/screenshots/mobile-settings.png" alt="Phone view: family settings with alert voice, family contact, honeypot and recording opt-ins, and consented family-voice enrolment"></td>
+<td width="33%"><img src="docs/screenshots/call-report.png" alt="Post-call report: L3 Stop verdict, stage timeline, who said what with stage tags, and a draft complaint for 1930"></td>
+</tr>
+<tr>
+<td><b>Honeypot offer + 1930:</b> at L2+, with family permission, Saavdhaan can keep the caller talking while the elder steps away.</td>
+<td><b>Family settings:</b> alert voice, family contact, opt-ins, and a consented family-voice recording.</td>
+<td><b>Post-call report:</b> stage timeline, who said what, and a draft 1930 / Chakshu complaint with placeholders.</td>
+</tr>
+</table>
+
+<sub>Screens are the real page, filled with real tracker output for synthetic calls from <code>bench/calls/</code>. The post-call report was rendered by <code>app/report.py</code> from that call's script instead of a live diarized recording.</sub>
+
+## Features
+
+- **Live guardian page:** a big postmark-style status (word + colour + level), five stage boxes with the phrases heard, live transcript, detected language, alert latency in ms, and a large **1930** helpline panel at L3.
+- **Spoken warnings** in hi, en, ta, bn, kn, te, mr with Timbre v3.0 audio tags (`<slow>`, `<whispers>`, `<shouting>`), cached after the first synthesis.
+- **Family voice:** a family member records 5–30 s (with explicit consent) and the L2 warning (“Listen, it's me. This is a fraud call. Hang up.”) plays in their cloned voice. Deleting the voice removes the embedding and its cached audio.
+- **Honeypot mode (opt-in):** at L2+, with family permission, Saavdhaan answers the caller in a neutral persona voice while the elder steps away, collecting evidence (name, “department”, where the money should go) through a Groq LLM. Rules enforced in code: it never speaks digits or number words and never claims money was sent. It stops once it has enough evidence and tells the elder to hang up and report.
+- **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
+- **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
 
 ## Quick start
 
@@ -63,14 +130,12 @@ Open <http://127.0.0.1:8000>, press **Start listening**, and put the call on spe
 
 ### Run on a phone
 
-Phones cannot share call audio with any app on the same phone, so Saavdhaan runs on a **second** phone (or tablet) placed next to the call phone's speaker. The laptop runs the backend.
-
 ```bash
 # set APP_TOKEN in .env to a long random string first
 .venv/Scripts/python -m app.serve
 ```
 
-Open the printed `https://<laptop-ip>:8443/?t=<token>` link on the phone once and accept the self-signed certificate warning. "Add to Home screen" gives a shortcut. The token is remembered on that device.
+Open the printed `https://<laptop-ip>:8443/?t=<token>` link on a **second** phone (or tablet) on the same Wi-Fi, accept the self-signed certificate warning, and place it next to the call phone's speaker. “Add to Home screen” gives a shortcut, and the token is remembered on that device.
 
 ### Check the API connection (a few credits)
 
@@ -78,6 +143,37 @@ Open the printed `https://<laptop-ip>:8443/?t=<token>` link on the phone once an
 .venv/Scripts/python -m app.probe                       # TTS one line, stream it back through STT
 .venv/Scripts/python -m app.probe --clone reference.wav # also test voice cloning
 ```
+
+## Testing it, step by step
+
+Steps 1–3 are free and need no network. Commands use the Windows path; use `.venv/bin/python` on macOS / Linux.
+
+**1. Unit tests.** Every Gnani and Groq call is mocked, and the tests never read your `.env`.
+
+```bash
+.venv/Scripts/python -m pytest -q          # 93 passed
+```
+
+**2. Talk to the tracker directly.**
+
+```python
+from app.tracker import Tracker
+t = Tracker()
+for line in ["Hello, I am calling from CBI.",
+             "There is an arrest warrant in your name for money laundering.",
+             "Don't tell anyone, stay on the video call.",
+             "Transfer the money to the RBI safe account right now."]:
+    t.feed(line); print(t.level(), line)      # 0, 1, 2, 3
+print(t.explain())                            # stages, phrases and times: the "why"
+```
+
+Try a negative such as `"Never share your OTP with anyone"`: it stays at 0.
+
+**3. Run the benchmark scripts through the tracker:** `python -m bench.run --text-only`, then open `bench/out/report.html`. To add your own test call, copy a file in `bench/calls/`, edit `turns`, `label` and `s5_turn` (the turn with the first money ask), and run it again.
+
+**4. Live check (a few credits):** `python -m app.probe`.
+
+**5. In the real app:** start the server, press **Start listening**, then read a script from `bench/calls/*_en.yaml` aloud or play a call on speaker. Watch the stages light up, the level rise and the spoken warning. Then try a hard negative such as `bank_fraud_desk_en.yaml`: it should stay Safe.
 
 ## Configuration (`.env`)
 
@@ -93,13 +189,14 @@ Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs l
 
 ## SaavdhaanBench
 
+<p align="center"><img src="docs/img/bench.svg" width="100%" alt="Benchmark pipeline: seed.py writes 60 call YAMLs; render.py synthesises them with Timbre v3.0; degrade.py applies 5 listening conditions; run.py streams them through 4 STT configs into the Tracker; results.csv feeds report.py which writes report.html. A free text-only path goes straight from the YAMLs to the Tracker. Below, the Pre-Payment Catch Rate formula."></p>
+
 A benchmark of 60 synthetic calls in `bench/calls/`:
 
-- 6 scam templates: digital arrest, courier drugs, fake KYC, son accident, TRAI SIM block, ED virtual court.
-- 6 hard negatives: a real bank fraud desk ("never share OTP"), a courier delivery code, a passport police verification, a relative urgently asking for money, a loan-collection call, a cyber-cell awareness call.
-- 5 language variants each: Hindi, code-mixed Hindi-English, English, Tamil, Bengali.
-
-Calls are rendered with Timbre v3.0 (two voices), degraded with ffmpeg (clean 16 kHz; 8 kHz G.711 phone line; pink noise at ~10 and ~5 dB SNR; random 20–60 ms dropouts) and streamed through Prisma v2.5 and v3.0, with and without keyterms and stage-following keyterms.
+- **6 scam templates:** digital arrest, courier drugs, fake KYC, son accident, TRAI SIM block, ED virtual court.
+- **6 hard negatives:** a real bank fraud desk (“never share OTP”), a courier delivery code, a passport police verification, a relative urgently asking for money, a loan-collection call, a cyber-cell awareness call.
+- **5 language variants each:** Hindi, code-mixed Hindi-English, English, Tamil, Bengali.
+- **Conditions:** clean 16 kHz; 8 kHz μ-law phone line; pink noise at ~10 and ~5 dB SNR; random 20–60 ms dropouts. **STT configs:** Prisma v2.5 and v3.0, with and without keyterms and stage-following keyterms.
 
 The headline metric is **Pre-Payment Catch Rate**: the share of scam calls flagged at L2+ *before the first money ask finishes*. Also reported: scam recall, false-alarm rate on the hard negatives, median time-to-alert, WER and keyterm recall. The alert threshold is calibrated to keep false alarms under 5%.
 
@@ -112,7 +209,25 @@ The headline metric is **Pre-Payment Catch Rate**: the share of scam calls flagg
 
 Every run prints an estimated credit cost and asks before spending. Results go to `bench/out/results.csv` and `bench/out/report.html`.
 
-**Text-only baseline** (perfect transcription, L2 threshold): scam recall 100%, false alarms 0%, Pre-Payment Catch 50%. Half of the scam scripts only reach three stages with the money ask itself, which is the gap the live system has to close. The lexicon and the scripts were written together, so treat this as an upper bound. Live STT numbers depend on an approved benchmark run.
+**Text-only baseline** (perfect transcription, 30 scam / 30 benign calls):
+
+| Alert at | Pre-payment catch | Scam recall | False alarms | Median time to alert |
+|---|---:|---:|---:|---:|
+| L1 Caution | 93% | 100% | 27% | 12.9 s |
+| **L2 Saavdhaan** (calibrated) | **50%** | **100%** | **0%** | 18.0 s |
+| L3 Stop | 3% | 93% | 0% | 23.0 s |
+
+L2 is the first level with false alarms under 5%. Half of the scam scripts only reach a third stage with the money ask itself, and that gap is what the live system has to close. The lexicon and the scripts were written together, so treat this as an upper bound. Live STT numbers depend on an approved benchmark run.
+
+## Gnani APIs used
+
+| API | Used for |
+|---|---|
+| Prisma v3.0 realtime STT (`wss://api.vachana.ai/stt/v3/stream`) | live transcription: `indic-auto`, `codemix`, telephony VAD, keyterms, mid-call `update_settings`, `previous_text` across 14-minute reconnects |
+| Prisma v2.5 realtime STT | benchmark comparison |
+| Timbre v3.0 TTS (REST and SSE) | spoken warnings with audio tags, honeypot persona, benchmark rendering |
+| Voice clone embeddings + `vachana-vc-v1` | family-voice warnings |
+| Batch STT with diarization | post-call report |
 
 ## Project layout
 
@@ -131,25 +246,17 @@ app/
 web/            index.html, app.js, styles.css, PWA manifest, service worker, icons, fonts (OFL)
 bench/          calls/*.yaml, seed.py, render.py, degrade.py, run.py, report.py
 tests/          pytest suite; every Gnani and Groq call is mocked
+docs/
+  diagrams/     LaTeX/TikZ sources for the diagrams above + build.ps1
+  img/          rendered SVG diagrams
+  screenshots/  UI screenshots used in this README
 ```
 
-## Tests
+The diagrams are LaTeX (TikZ) in the app's own colours. To rebuild them after a change (needs MiKTeX or TeX Live with `pdflatex` and `pdftocairo`):
 
-```bash
-.venv/Scripts/python -m pytest -q
+```powershell
+./docs/diagrams/build.ps1
 ```
-
-Tests never call a live API and never read your `.env`.
-
-## Gnani APIs used
-
-| API | Used for |
-|---|---|
-| Prisma v3.0 realtime STT (`wss://api.vachana.ai/stt/v3/stream`) | live transcription: `indic-auto`, `codemix`, telephony VAD, keyterms, mid-call `update_settings`, `previous_text` across 14-minute reconnects |
-| Prisma v2.5 realtime STT | benchmark comparison |
-| Timbre v3.0 TTS (REST and SSE) | spoken warnings with audio tags, honeypot persona, benchmark rendering |
-| Voice clone embeddings + `vachana-vc-v1` | family-voice warnings |
-| Batch STT with diarization | post-call report |
 
 ## Limits and honest notes
 
