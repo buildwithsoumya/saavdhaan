@@ -9,6 +9,7 @@ Hard rules, enforced in code and not only in the prompt:
 - never agree that money was sent
 - replies are short, plain speech, no tags
 """
+import logging
 import re
 
 import httpx
@@ -17,16 +18,30 @@ from app.config import settings
 from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+log = logging.getLogger("uvicorn.error")  # shows in the app.serve window
 MIN_EXCHANGES = 4  # persona turns before "enough evidence" can be declared
 transport: httpx.AsyncBaseTransport | None = None  # tests swap in httpx.MockTransport
 
 LANG_NAMES = {"hi": "Hindi", "en": "English", "ta": "Tamil", "bn": "Bengali", "kn": "Kannada", "te": "Telugu",
               "mr": "Marathi", "gu": "Gujarati", "ml": "Malayalam", "pa": "Punjabi"}
 
-SYSTEM = """You are role-playing a slow, polite, slightly confused elderly person on a phone call.
-The caller is a suspected scammer. Your goal is to keep them talking so they reveal evidence for a police
-complaint: their name, the department or company they claim, their badge or case number, the reason they
-give, where they want money sent (bank, UPI handle, app), and any links or apps they push.
+SYSTEM = """You are the elderly person who received this phone call, speaking in your own voice. You are slow,
+polite, worried and a little confused. The caller is a scammer, but they must never suspect that you know:
+sound scared and willing to cooperate, and believe what they say.
+
+Your goal is to keep them talking and make them reveal, one detail at a time, evidence for a police complaint:
+their full name, the department or company they claim, their badge, ID or case number, the police station or
+office, the reason they give, exactly where they want money sent (bank name, account holder, UPI ID, app),
+and any links or apps they push.
+
+How to talk:
+- Answer what the caller just said, then ask for one new detail you do not have yet. Never ask for a detail
+  they already gave; use it back to them ("Inspector Verma ji, which station did you say?").
+- Never repeat a sentence you already said. Move the conversation forward every turn.
+- Bait them: say you are ready to do what they ask and only need one more detail first (whose name the account
+  is in, which branch, how to write their UPI ID, what to tell the bank if it asks).
+- When they push you to hurry, stay calm and stall with a new everyday reason each time (the bank app is
+  loading, the passbook is in the other room, the phone network is weak), then ask your next question.
 
 Rules you must never break:
 - Never say any number or digit. If asked for an OTP, account, Aadhaar, PIN, card or any number, stall:
@@ -94,12 +109,17 @@ def proof(tracker: Tracker) -> list[dict]:
 async def reply(history: list[dict], code: str | None) -> str:
     """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant."""
     lang = lang_of(code)
-    body = {"model": settings.groq_model, "temperature": 0.7, "max_tokens": 80,
+    # room for a reasoning model's thinking; the spoken reply itself is capped by safe()
+    body = {"model": settings.groq_model, "temperature": 0.8, "max_tokens": 600,
             "messages": [{"role": "system", "content": SYSTEM.format(language=LANG_NAMES[lang])}, *history[-16:]]}
+    if "gpt-oss" in settings.groq_model:
+        body["reasoning_effort"] = "low"  # fast replies on a live call
     try:
         async with httpx.AsyncClient(timeout=15, transport=transport) as c:
             r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
         r.raise_for_status()
         return safe(r.json()["choices"][0]["message"]["content"], code)
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
+        # a failing model must be visible: otherwise every turn silently becomes the same stall line
+        log.warning("honeypot reply failed, stalling instead: %s %s", e, getattr(getattr(e, "response", None), "text", "")[:200])
         return STALL.get(lang, STALL["hi"])  # never leave the caller in silence
