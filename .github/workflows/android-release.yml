@@ -22,9 +22,9 @@ jobs:
     if: github.ref == 'refs/heads/main' # "Run workflow" accepts any branch; only main may publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -37,7 +37,8 @@ jobs:
             echo "::error::Secret ANDROID_KEYSTORE_BASE64 is missing (see README: Android app releases)"
             exit 1
           fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # keep only base64 characters: a secret pasted from Windows can carry CR/LF or a BOM
+          printf '%s' "$KEYSTORE_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > "$RUNNER_TEMP/release.jks"
 
       - name: Build the signed APK
         working-directory: android
