@@ -1,6 +1,8 @@
 """Honeypot mode: once a call is clearly a scam (L2+), Saavdhaan can take over the
-talking in a neutral persona voice so the elder can step away, keeping the caller
-busy while the transcript collects evidence.
+talking so the elder can step away, keeping the caller busy while the transcript
+collects evidence. It speaks in the elder's own cloned voice when the elder enrolled
+it with honeypot consent, otherwise in a neutral persona voice. When enough evidence
+is in, the elder is shown the caller's own words for each scam stage as proof.
 
 Hard rules, enforced in code and not only in the prompt:
 - never any digits, so no OTP, account, Aadhaar or card number, real or fake
@@ -12,7 +14,7 @@ import re
 import httpx
 
 from app.config import settings
-from app.tracker import Tracker
+from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MIN_EXCHANGES = 4  # persona turns before "enough evidence" can be declared
@@ -80,6 +82,13 @@ def evidence_complete(tracker: Tracker, exchanges: int) -> bool:
     """Authority claimed, threat made, money asked, and enough conversation recorded."""
     act = tracker.active()
     return exchanges >= MIN_EXCHANGES and {"S1", "S2", "S5"} <= act.keys()
+
+
+def proof(tracker: Tracker) -> list[dict]:
+    """The caller's own words that show the scam: the first line heard for each stage."""
+    # same 10-minute window that evidence_complete() judged; hits are kept in time order
+    return [{"stage": s, "name": STAGE_NAMES[s], "phrase": hs[0].phrase, "said": hs[0].text}
+            for s, hs in sorted(tracker.active().items())]
 
 
 async def reply(history: list[dict], code: str | None) -> str:

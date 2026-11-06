@@ -105,7 +105,10 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
 - **Live guardian page:** a big postmark-style status (word + colour + level), five stage boxes with the phrases heard, live transcript, detected language, alert latency in ms, and a large **1930** helpline panel at L3.
 - **Spoken warnings** in hi, en, ta, bn, kn, te, mr with Timbre v3.0 audio tags (`<slow>`, `<whispers>`, `<shouting>`), cached after the first synthesis.
 - **Family voice:** a family member records 5–30 s (with explicit consent) and the L2 warning (“Listen, it's me. This is a fraud call. Hang up now…”) plays in their cloned voice. Deleting the voice removes the embedding and its cached audio.
-- **Honeypot mode (opt-in):** at L2+, with family permission, Saavdhaan answers the caller in a neutral persona voice while the elder steps away, collecting evidence (name, “department”, where the money should go) through a Groq LLM. Rules enforced in code: it never speaks digits or number words and never claims money was sent. It stops once it has enough evidence and tells the elder to hang up and report.
+- **Honeypot mode in the elder's own voice (opt-in):** at L2+, the elder presses *Let Saavdhaan talk* and steps away. Saavdhaan answers the caller **in the elder's own cloned voice**, so the caller keeps talking as if nothing changed, and collects evidence (name, “department”, where the money should go) through a Groq LLM.
+  - **Consent:** the elder records their voice in Family settings and ticks a separate box: “This is my own voice. Saavdhaan may use it to talk to scam callers.” A voice enrolled only for warnings is never used to talk to callers. Without a consented own voice, Saavdhaan uses the neutral `Vasudha` voice, and it falls back to that voice if cloning fails mid-call.
+  - **Rules enforced in code:** it never speaks digits or number words and never claims money was sent.
+  - **Proof for the elder:** once the caller has claimed authority, made a threat and asked for money, and Saavdhaan has replied at least 4 times, it stops. It then shows the caller's own words for each scam stage (“Authority: ‘I am an inspector from CBI…’”, “Money ask: ‘…transfer to the RBI safe account’”) and tells the elder to hang up and report to 1930.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
 - **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
 
@@ -198,7 +201,7 @@ Try a negative such as `"Never share your OTP with anyone"`: it stays at 0.
 | `ALERT_VOICE` | Timbre v3.0 voice for warnings (default `Shivani`) |
 | `APP_TOKEN` | Access token for API, WebSocket and reports; required by `app.serve` |
 | `GROQ_API_KEY`, `GROQ_MODEL` | LLM for honeypot replies (default `llama-3.3-70b-versatile`) |
-| `HONEYPOT_VOICE` | Timbre v3.0 persona voice for honeypot mode (default `Vasudha`) |
+| `HONEYPOT_VOICE` | Timbre v3.0 voice for honeypot mode when the elder has not chosen their own consented voice (default `Vasudha`) |
 
 Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs live in `data/`, which is gitignored.
 

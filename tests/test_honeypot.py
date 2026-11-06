@@ -98,12 +98,72 @@ def test_honeypot_flow(client, tmp_path):
             assert receive_until(ws, "audio") == b"PERSONA"
         assert replies == ["reply 1", "reply 3", "reply 5", "reply 7"]
         done = receive_until(ws, "honeypot")
-        assert done == {"type": "honeypot", "on": False, "reason": "evidence"}
+        assert {k: done[k] for k in ("type", "on", "reason")} == {"type": "honeypot", "on": False, "reason": "evidence"}
+        # proof for the elder: the caller's own first line for each stage heard
+        assert [p["stage"] for p in done["proof"]] == ["S1", "S2", "S3", "S4", "S5"]
+        assert done["proof"][0]["said"] == "CBI se inspector bol raha hoon"
+        assert done["proof"][-1] == {"stage": "S5", "name": "Extraction", "phrase": "upi", "said": "UPI se transfer karo"}
         ws.send_text(json.dumps({"type": "stop"}))
     assert client.alert_calls == [2, 3]  # L3 held back while the persona talked, played when it stopped
     assert {v for _, v, _ in client.tts_calls} == {main.settings.honeypot_voice}
     log = json.loads((tmp_path / "honeypot" / "hp1.json").read_text(encoding="utf-8"))
     assert [m["role"] for m in log] == ["user", "assistant"] * 4
+
+
+def run_one_persona_turn(client, call, hpvoice):
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana"), said("OTP batao")]
+    with client.websocket_connect(f"/ws?call={call}&hpvoice={hpvoice}") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        receive_until(ws, "audio")  # L2 alert
+        ws.send_text(json.dumps({"type": "honeypot", "on": True}))
+        receive_until(ws, "honeypot")
+        ws.send_bytes(b"\0" * 1024)
+        receive_until(ws, "say")
+        audio = receive_until(ws, "audio")
+        ws.send_text(json.dumps({"type": "stop"}))
+    return audio
+
+
+@pytest.fixture
+def voices(client, monkeypatch, tmp_path):
+    """Two enrolled voices: one with honeypot consent, one for warnings only; vc_tts recorded."""
+    from app import enrol
+    from tests.test_enrol import EMB, wav_of
+
+    async def fake_embed(audio, filename="reference.wav"):
+        return EMB
+
+    vc_calls = []
+
+    async def fake_vc(text, embedding, sample_rate=16000):
+        vc_calls.append(text)
+        return b"MYVOICE"
+
+    monkeypatch.setattr(gnani, "clone_embedding", fake_embed)
+    monkeypatch.setattr(gnani, "vc_tts", fake_vc)
+    own = asyncio.run(enrol.enrol(wav_of(8), "Kamla", consent=True, honeypot=True))
+    family = asyncio.run(enrol.enrol(wav_of(8), "Rahul", consent=True))
+    return {"own": own["id"], "family": family["id"], "vc_calls": vc_calls}
+
+
+def test_persona_speaks_in_the_elders_own_voice_only_with_honeypot_consent(client, voices):
+    assert run_one_persona_turn(client, "hp5", f"family:{voices['own']}") == b"MYVOICE"
+    assert voices["vc_calls"] and not client.tts_calls
+    # a voice enrolled for warnings only never talks to the caller: neutral persona instead
+    assert run_one_persona_turn(client, "hp6", f"family:{voices['family']}") == b"PERSONA"
+    assert run_one_persona_turn(client, "hp7", "") == b"PERSONA"
+    assert {v for _, v, _ in client.tts_calls} == {main.settings.honeypot_voice}
+
+
+def test_own_voice_failure_falls_back_to_neutral_persona(client, voices, monkeypatch):
+    async def broken_vc(text, embedding, sample_rate=16000):
+        raise gnani.GnaniError("clone service down")
+
+    monkeypatch.setattr(gnani, "vc_tts", broken_vc)
+    assert run_one_persona_turn(client, "hp8", f"family:{voices['own']}") == b"PERSONA"
 
 
 def test_honeypot_needs_groq_key(client, monkeypatch):

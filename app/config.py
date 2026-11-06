@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_token: str = ""
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
-    honeypot_voice: str = "Vasudha"  # neutral Timbre v3 persona, never a clone of the elder
+    honeypot_voice: str = "Vasudha"  # neutral Timbre v3 persona, used unless the elder chose their own consented voice
 
 
 settings = Settings()

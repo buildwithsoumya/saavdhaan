@@ -6,6 +6,7 @@ Browsers cannot set WebSocket headers, so the API key lives only here.
 import asyncio
 import hmac
 import json
+import logging
 import re
 import wave
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from app.config import settings
 from app.tracker import Tracker, keyterms
 
 WEB = Path(__file__).parent.parent / "web"
+log = logging.getLogger("uvicorn.error")  # shows in the app.serve window
 app = FastAPI()
 
 
@@ -69,7 +71,7 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
 
 
 @app.websocket("/ws")
-async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = ""):
+async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = "", hpvoice: str = ""):
     await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
     if not token_ok(token):
         await ws.close(code=4401)
@@ -114,11 +116,25 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             log = Path(settings.data_dir) / "honeypot" / f"{call}.json"
             log.parent.mkdir(parents=True, exist_ok=True)
             log.write_text(json.dumps(state.history, ensure_ascii=False, indent=1), encoding="utf-8")
-        await send({"type": "honeypot", "on": on, "reason": reason})
+        msg = {"type": "honeypot", "on": on, "reason": reason}
+        if reason == "evidence":  # show the elder the caller's own words for each scam stage
+            msg["proof"] = honeypot.proof(state.tracker)
+        await send(msg)
         level = state.tracker.level()
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
             state.alerted = level
             spawn(play_alert(level, lang))
+
+    async def persona_audio(line, lang):
+        """The elder's own cloned voice when they enrolled it with honeypot consent, else the neutral persona."""
+        emb = enrol.load(hpvoice[len(alerts.FAMILY):]) if hpvoice.startswith(alerts.FAMILY) else None
+        if emb and emb.get("honeypot"):
+            try:
+                return await gnani.vc_tts(line, emb["embedding"])
+            except Exception as e:  # a clone failure must not leave the caller in silence
+                log.warning("honeypot voice clone failed, using the neutral voice: %s", e)
+        return await gnani.tts(line, voice=settings.honeypot_voice,
+                               language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
 
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
@@ -132,8 +148,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 if state.history[-1]["content"] != asked:
                     continue  # the caller said more meanwhile: answer all of it instead
                 try:
-                    audio = await gnani.tts(line, voice=settings.honeypot_voice,
-                                            language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
+                    audio = await persona_audio(line, lang)
                 except Exception as e:
                     failures += 1
                     await send({"type": "error", "message": f"honeypot voice failed: {e}"})
@@ -239,9 +254,10 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
 
 
 @app.post("/api/voices")
-async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False)):
+async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False),
+                      honeypot: bool = Form(False)):
     try:
-        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent)
+        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent, honeypot)
     except enrol.EnrolError as e:
         raise HTTPException(400, str(e))
     except gnani.GnaniError as e:
