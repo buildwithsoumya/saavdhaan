@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main' # "Run workflow" accepts any branch; only main may publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +63,13 @@ jobs:
             echo
             echo "Built from $(git log -1 --format='%h: %s')"
           } > notes.md
-          gh release create "android-v${version}" saavdhaan.apk \
-            --target "$GITHUB_SHA" \
-            --title "Saavdhaan Android ${version}" \
-            --notes-file notes.md \
-            --latest
+          tag="android-v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then # a re-run keeps the run number: replace the asset
+            gh release upload "$tag" saavdhaan.apk --clobber
+          else
+            gh release create "$tag" saavdhaan.apk \
+              --target "$GITHUB_SHA" \
+              --title "Saavdhaan Android ${version}" \
+              --notes-file notes.md \
+              --latest
+          fi

@@ -5,7 +5,8 @@ plugins {
 // Release signing comes from the environment (GitHub Actions secrets), never from the repo.
 // The same key must sign every release, or phones refuse to install the update.
 val keystoreFile = System.getenv("SAAVDHAAN_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
-// CI run number: each build has a higher versionCode, which Android requires for updates
+// CI run number: each build has a higher versionCode, which Android requires for updates.
+// Run numbers restart if the workflow is renamed or recreated: add an offset here if that ever happens.
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
 android {

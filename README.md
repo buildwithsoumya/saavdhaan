@@ -148,7 +148,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk   # or copy the APK to the phone and open it
 ```
 
-**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so the link works only when you are signed in to GitHub with access to it.
+**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so the link works only in a browser signed in to GitHub with access to it (on the phone too).
 
 Open the app, paste the link printed by `app.serve`, compare the fingerprint, and tap **Trust**. Press Back on the main page to change the laptop link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
 
