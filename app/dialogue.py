@@ -74,6 +74,9 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     priority += list(FIELD_CUES)
     recent_questions = [m["content"] for m in history[:-1] if m.get("role") == "assistant"][-2:]
     cooling = set().union(*(question_targets(line) for line in recent_questions))
-    target = next((field for field in priority if field not in evidence and field not in cooling), None)
+    attempts = {field: sum(field in question_targets(m.get("content", "")) for m in history
+                           if m.get("role") == "assistant") for field in FIELD_CUES}
+    target = next((field for field in priority if field not in evidence and field not in cooling
+                   and attempts[field] < 2), None)
     return TurnPlan("clarify" if target else "listen", target,
                     "Respond to the latest words, then ask one natural question about the target. Never ask for a known fact.")

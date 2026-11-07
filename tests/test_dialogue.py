@@ -51,3 +51,9 @@ def test_urgency_asks_for_one_step_instead_of_a_new_checklist():
 
 def test_short_acknowledgement_does_not_invent_a_topic():
     assert plan_turn(turns("Okay"), {}).target is None
+
+
+def test_abandoned_questions_have_a_call_wide_attempt_budget():
+    history = turns("Talk", "Your name?", "Listen", "Name please?", "Listen", "Which bank?",
+                    "Listen", "Which office?", "Listen")
+    assert plan_turn(history, {}).target != "name"
