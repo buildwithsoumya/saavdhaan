@@ -137,6 +137,7 @@ def test_conflicting_claims_keep_both_sources_without_overwriting():
     honeypot.merge({"bank": "SBI"}, evidence, "Actually use SBI")
     assert evidence["bank"] == "PNB"
     assert evidence.alternatives["bank"] == [{"value": "SBI", "said": "Actually use SBI"}]
+    assert honeypot.plan_turn([{"role": "user", "content": "Listen carefully"}], evidence).action == "resolve_conflict"
 
 @pytest.fixture
 def client(monkeypatch):
