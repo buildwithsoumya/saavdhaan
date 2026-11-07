@@ -230,7 +230,6 @@ function playAlert(bytes) {
   bytes.isAlert = alertPending; // persona replies play too, but only alerts count for latency
   alertPending = false;
   queue.push(bytes);
-  muted = true; // don't let our own warning be transcribed back into the tracker
   if (!playing) playNext();
 }
 
@@ -245,6 +244,7 @@ function playNext() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
   const isAlert = bytes.isAlert;
+  muted = !!isAlert; // persona speech stays audible to STT after echo cancellation
   audio.addEventListener("playing", () => {
     if (isAlert && lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
@@ -299,7 +299,9 @@ document.addEventListener("visibilitychange", () => listening && document.visibi
 
 async function startAudio() {
   mic = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+    // Keep listening through persona speech; browser echo cancellation suppresses
+    // this device's own playback while the caller can still interrupt.
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
   ctx = new AudioContext();
   const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
