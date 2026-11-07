@@ -28,10 +28,18 @@ class TurnPlan:
         return f"Action: {self.action}. Target: {self.target or 'none'}. {self.reason}"
 
 
+def question_targets(text: str) -> set[str]:
+    if "?" not in text and "؟" not in text:
+        return set()
+    return {key for key, cue in FIELD_CUES.items() if re.search(cue, text, re.I)}
+
+
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     caller = history[-1].get("content", "") if history and history[-1].get("role") == "user" else ""
     priority = (["upi_or_account", "account_holder", "bank"] if PAYMENT_DEMAND.search(caller) else [])
     priority += list(FIELD_CUES)
-    target = next((field for field in priority if field not in evidence), None)
+    recent_questions = [m["content"] for m in history[:-1] if m.get("role") == "assistant"][-2:]
+    cooling = set().union(*(question_targets(line) for line in recent_questions))
+    target = next((field for field in priority if field not in evidence and field not in cooling), None)
     return TurnPlan("clarify" if target else "listen", target,
                     "Respond to the latest words, then ask one natural question about the target. Never ask for a known fact.")
