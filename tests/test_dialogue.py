@@ -26,3 +26,8 @@ def test_threats_take_priority_over_payment_checklist():
 
 def test_direct_questions_get_an_answer_before_an_evidence_request():
     assert plan_turn(turns("Can you hear me?"), {}).action == "answer"
+
+
+def test_isolation_demand_never_becomes_a_promise_of_secrecy():
+    plan = plan_turn(turns("Don't tell anyone, stay alone"), {})
+    assert "Do not promise secrecy" in plan.reason

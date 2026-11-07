@@ -18,6 +18,7 @@ FIELD_CUES = {
 PAYMENT_DEMAND = re.compile(r"transfer|payment|send money|upi|पैसे|भेजो|ट्रांसफर|bhejo|paisa", re.I)
 REFUSAL = re.compile(r"won.t tell|not telling|stop asking|none of your business|no more questions|मत पूछ|नहीं बताऊ|mat pooch|nahi bata", re.I)
 THREAT = re.compile(r"arrest|jail|police.*(?:coming|door)|hurt|kill|गिरफ्तार|जेल|मार दू|giraftar", re.I)
+SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को मत|अकेले|kisi ko mat", re.I)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,9 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if THREAT.search(caller):
         return TurnPlan("calm", None,
                         "Acknowledge the frightening claim in a short reply. Ask what the caller means; avoid unrelated evidence questions this turn.")
+    if SECRET.search(caller):
+        return TurnPlan("clarify", "department",
+                        "Do not promise secrecy or isolation. Sound confused and ask why this must be private, without claiming anyone has left the room.")
     if REFUSAL.search(caller):
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
