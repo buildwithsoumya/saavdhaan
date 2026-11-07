@@ -42,6 +42,7 @@ let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null, failures = 0, alertPending = false, level = 0, honeypotOn = false;
 const queue = []; // alert audio plays one clip at a time
 let playing = false;
+let echoReady = false;
 
 // ---- settings -------------------------------------------------------------
 async function loadVoices() {
@@ -200,7 +201,7 @@ function renderHoneypot() {
 
 const STAGE_HI = Object.fromEntries(STAGES.map(([id, hi]) => [id, hi]));
 function renderProof(items, facts = []) {
-  $("hp-facts").innerHTML = facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join("");
+  $("hp-facts").innerHTML = facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>${f.said ? `<small>“${esc(f.said)}”</small>` : ""}</div>`).join("");
   $("hp-proof-list").innerHTML = items.map((p) =>
     `<li><b>${STAGE_HI[p.stage] || ""} · ${esc(p.name)}: “${esc(p.phrase)}”</b>${esc(p.said)}</li>`).join("");
   $("hp-proof").hidden = items.length === 0 && facts.length === 0;
@@ -230,7 +231,6 @@ function playAlert(bytes) {
   bytes.isAlert = alertPending; // persona replies play too, but only alerts count for latency
   alertPending = false;
   queue.push(bytes);
-  muted = true; // don't let our own warning be transcribed back into the tracker
   if (!playing) playNext();
 }
 
@@ -245,6 +245,7 @@ function playNext() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
   const isAlert = bytes.isAlert;
+  muted = !!isAlert || !echoReady; // fall back to half duplex without reported echo cancellation
   audio.addEventListener("playing", () => {
     if (isAlert && lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
@@ -299,8 +300,11 @@ document.addEventListener("visibilitychange", () => listening && document.visibi
 
 async function startAudio() {
   mic = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+    // Keep listening through persona speech; browser echo cancellation suppresses
+    // this device's own playback while the caller can still interrupt.
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
+  echoReady = mic.getAudioTracks()[0]?.getSettings().echoCancellation === true;
   ctx = new AudioContext();
   const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
   await ctx.audioWorklet.addModule(url);
@@ -343,7 +347,7 @@ function connect() {
     else if (m.type === "say") addLine(m.text, null, true);
     else if (m.type === "honeypot") {
       honeypotOn = m.on;
-      $("hp-done").hidden = m.reason !== "evidence";
+      $("hp-done").hidden = !["evidence", "timeout"].includes(m.reason);
       if (m.proof) renderProof(m.proof, m.facts);
       renderHoneypot();
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);

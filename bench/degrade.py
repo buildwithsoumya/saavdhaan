@@ -68,9 +68,14 @@ def noise_mean_db(duration_s) -> float:
 
 
 def duration_s(path) -> float:
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                       capture_output=True, text=True, check=True)
-    return float(r.stdout)
+    # ffmpeg is already required for every benchmark condition; its probe
+    # output avoids a second executable dependency on minimal Windows installs.
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(path)], capture_output=True, text=True)
+    match = re.search(r"Duration: (\d+):(\d+):([\d.]+)", r.stderr)
+    if not match:
+        raise ValueError(f"cannot read audio duration: {path}")
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 def degrade(clean: Path, condition: str, seed: int = 0) -> Path:
