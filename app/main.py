@@ -44,6 +44,7 @@ class Call:
     delivery_latency_ms: list[int] = field(default_factory=list)
     language: str = "hi-IN"
     persona_epoch: int = 0
+    turn_plans: list[dict] = field(default_factory=list)
 
 
 CALLS: dict[str, Call] = {}
@@ -134,6 +135,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             path.write_text(json.dumps({"history": state.history, "evidence": state.evidence,
                                         "end_reason": reason,
                                         "delivery_latency_ms": state.delivery_latency_ms,
+                                        "turn_plans": state.turn_plans,
                                         "evidence_sources": state.evidence_sources,
                                         "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
                                        ensure_ascii=False, indent=1), encoding="utf-8")
@@ -182,6 +184,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 turns = sum(m["role"] == "assistant" for m in state.history)
                 closing_now = (state.closing or turns >= honeypot.MAX_EXCHANGES - 1 or
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
+                plan = honeypot.plan_turn(state.history, state.evidence)
                 line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
                                             state.evidence_sources)
                 if not state.honeypot or state.persona_epoch != epoch:
@@ -205,6 +208,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 await send({"type": "say", "text": line})
                 await send(audio)
                 state.delivery_latency_ms.append(round((time.monotonic() - turn_started) * 1000))
+                state.turn_plans.append({"action": "close" if closing_now else plan.action,
+                                         "target": None if closing_now else plan.target})
                 if closing_now:  # that was the goodbye: the elder now sees the proof
                     await set_honeypot(False, "evidence", lang)
                     return

@@ -216,6 +216,8 @@ def test_honeypot_flow(client, tmp_path):
     assert log["evidence"] == {"upi_or_account": "x@upi"}
     assert log["end_reason"] == "evidence"
     assert len(log["delivery_latency_ms"]) == 5
+    assert len(log["turn_plans"]) == 5
+    assert log["turn_plans"][-1]["action"] == "close"
 
 
 def run_one_persona_turn(client, call, hpvoice):
