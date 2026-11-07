@@ -22,3 +22,7 @@ def test_refusal_changes_strategy_instead_of_interrogating():
 
 def test_threats_take_priority_over_payment_checklist():
     assert plan_turn(turns("Transfer now or we will arrest you"), {}).action == "calm"
+
+
+def test_direct_questions_get_an_answer_before_an_evidence_request():
+    assert plan_turn(turns("Can you hear me?"), {}).action == "answer"

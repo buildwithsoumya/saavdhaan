@@ -44,6 +44,9 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if REFUSAL.search(caller):
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
+    if "?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I):
+        return TurnPlan("answer", None,
+                        "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
     priority = (["upi_or_account", "account_holder", "bank"] if PAYMENT_DEMAND.search(caller) else [])
     priority += list(FIELD_CUES)
     recent_questions = [m["content"] for m in history[:-1] if m.get("role") == "assistant"][-2:]
