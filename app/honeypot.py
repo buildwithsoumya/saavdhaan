@@ -159,7 +159,7 @@ def safe(reply: str, code: str | None) -> str:
     """Enforce the hard rules; anything doubtful becomes a stalling line."""
     lang = lang_of(code)
     text = re.sub(r"<[^>]*>|[\[\(].*?[\]\)]|\*", "", reply or "").strip()
-    if not text or DIGITS.search(text) or NUMBER_RUN.search(text) or PAID.search(text) or len(text) > 220:
+    if not text or DIGITS.search(text) or NUMBER_RUN.search(text) or PAID.search(text) or len(text) > 220 or len(text.split()) > 25:
         return STALL.get(lang, STALL["hi"])
     return text
 
