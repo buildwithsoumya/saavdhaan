@@ -17,6 +17,7 @@ import re
 import httpx
 
 from app.config import settings
+from app.dialogue import plan_turn
 from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -214,6 +215,7 @@ def system_prompt(lang: str, evidence: dict, closing: bool = False, history: lis
     missing = "\n".join(f"- {label}" for k, label in EVIDENCE.items() if k not in evidence) or "- nothing: keep them talking"
     prompt = SYSTEM.format(language=LANG_NAMES[lang], known=known, missing=missing, fields=", ".join(EVIDENCE),
                            persona=settings.honeypot_persona, tactic=tactic_for(history or []))
+    prompt += "\nConversation plan: " + plan_turn(history or [], evidence).instruction()
     return prompt + (CLOSING if closing else "")
 
 
