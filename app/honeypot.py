@@ -92,6 +92,14 @@ EVIDENCE = {
     "account_holder": "Account holder", "upi_or_account": "UPI ID or account", "app_or_link": "App or link",
 }
 
+
+class Evidence(dict):
+    """Accepted claims plus source-backed alternatives; never silently overwrite."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.alternatives: dict[str, list[dict]] = {}
+
+
 STALL = {
     "hi": "एक मिनट बेटा, मेरा चश्मा नहीं मिल रहा। आप अपना नाम फिर से बताइए?",
     "en": "One minute, I can't find my glasses. What did you say your name was?",
@@ -238,7 +246,7 @@ def parse(content: str, evidence: dict) -> str:
 
 def merge(found, evidence: dict, line: str = "", sources: dict | None = None) -> None:
     for k, v in (found.items() if isinstance(found, dict) else ()):
-        if k not in EVIDENCE or not isinstance(v, str) or not v.strip() or k in evidence:
+        if k not in EVIDENCE or not isinstance(v, str) or not v.strip():
             continue
         value = v.strip()
         # The extractor must point to words actually spoken by the caller. Never
@@ -246,6 +254,12 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
         matched = (value.casefold() in line.casefold() if k in ("upi_or_account", "app_or_link", "badge_or_case")
                    else quote_in_line(value, line))
         if not line or not matched:
+            continue
+        if k in evidence:
+            if isinstance(evidence, Evidence) and evidence[k].casefold() != value.casefold():
+                alternatives = evidence.alternatives.setdefault(k, [])
+                if not any(item["value"].casefold() == value.casefold() for item in alternatives):
+                    alternatives.append({"value": value, "said": line})
             continue
         evidence[k] = value[:120]
         if sources is not None:

@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import alerts, enrol, gnani, honeypot, report
+from app.honeypot import Evidence
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -36,7 +37,7 @@ class Call:
     honeypot: bool = False
     history: list = field(default_factory=list)  # honeypot chat: caller = user, persona = assistant
     persona_busy: bool = False
-    evidence: dict = field(default_factory=dict)  # what the caller revealed during honeypot
+    evidence: dict = field(default_factory=Evidence)
     evidence_sources: dict = field(default_factory=dict)  # exact caller line for each accepted fact
     closing: bool = False  # evidence is in: the persona's next line ends the call
     honeypot_started: float = 0.0

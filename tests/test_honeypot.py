@@ -130,6 +130,14 @@ def test_evidence_must_be_a_caller_quote():
     honeypot.merge({"bank": "SBI"}, fresh := {}, long_line, origin := {})
     assert "SBI" in origin["bank"]
 
+
+def test_conflicting_claims_keep_both_sources_without_overwriting():
+    evidence = honeypot.Evidence()
+    honeypot.merge({"bank": "PNB"}, evidence, "Use PNB")
+    honeypot.merge({"bank": "SBI"}, evidence, "Actually use SBI")
+    assert evidence["bank"] == "PNB"
+    assert evidence.alternatives["bank"] == [{"value": "SBI", "said": "Actually use SBI"}]
+
 @pytest.fixture
 def client(monkeypatch):
     FakeStream.instances, FakeStream.script = [], []
