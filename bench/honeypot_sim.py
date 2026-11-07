@@ -45,9 +45,13 @@ async def simulate(call: dict, responder=honeypot.reply) -> dict:
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Replay synthetic scam scripts against the honeypot")
     parser.add_argument("--limit", type=int, default=3)
+    parser.add_argument("--case", help="run one case id, such as digital_arrest_en")
     parser.add_argument("--run", action="store_true", help="make paid Groq requests")
     args = parser.parse_args()
-    calls = [c for c in load_calls() if c["label"] == "scam"][:args.limit]
+    calls = [c for c in load_calls() if c["label"] == "scam" and (not args.case or c["id"] == args.case)]
+    if args.case and not calls:
+        parser.error(f"unknown scam case: {args.case}")
+    calls = calls[:args.limit]
     if not args.run:
         print(f"Preview: {len(calls)} synthetic scam calls; add --run to use Groq")
         for call in calls:
