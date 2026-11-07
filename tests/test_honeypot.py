@@ -286,6 +286,13 @@ def test_reply_model_timeout_uses_fallback_model(monkeypatch):
     assert seen == [honeypot.settings.groq_model, honeypot.FALLBACK_MODEL]
 
 
+def test_failed_closing_reply_uses_a_goodbye(monkeypatch):
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
+    line = asyncio.run(honeypot.reply([], "en-IN", closing=True))
+    assert line == honeypot.GOODBYE["en"]
+    assert "?" not in line
+
+
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
