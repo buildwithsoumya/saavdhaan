@@ -43,6 +43,7 @@ class Call:
     honeypot_started: float = 0.0
     delivery_latency_ms: list[int] = field(default_factory=list)
     language: str = "hi-IN"
+    persona_epoch: int = 0
 
 
 CALLS: dict[str, Call] = {}
@@ -121,6 +122,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if state.honeypot == on:
             return
         state.honeypot = on
+        state.persona_epoch += 1
+        state.persona_busy = False
         state.closing = False
         if on:
             state.honeypot_started = time.monotonic()
@@ -170,8 +173,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
         failures = 0
+        epoch = state.persona_epoch
         try:
-            while state.honeypot and state.history and state.history[-1]["role"] == "user":
+            while state.honeypot and state.persona_epoch == epoch and state.history and state.history[-1]["role"] == "user":
                 lang = state.language
                 turn_started = time.monotonic()
                 asked = state.history[-1]["content"]
@@ -180,7 +184,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
                 line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
                                             state.evidence_sources)
-                if not state.honeypot:
+                if not state.honeypot or state.persona_epoch != epoch:
                     return
                 if state.history[-1]["content"] != asked:
                     continue  # the caller said more meanwhile: answer all of it instead
@@ -193,7 +197,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                         await set_honeypot(False, "error", lang)
                         return
                     continue
-                if not state.honeypot:
+                if not state.honeypot or state.persona_epoch != epoch:
                     return
                 if state.history[-1]["content"] != asked:
                     continue
@@ -208,7 +212,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 # evidence in: answer the caller's next line with a natural goodbye, not a sudden silence
                 state.closing = honeypot.evidence_complete(state.tracker, exchanges, state.evidence)
         finally:
-            state.persona_busy = False
+            if state.persona_epoch == epoch:
+                state.persona_busy = False
 
     async def warn(level, lang):
         if silent:  # honeypot allowed: the caller must not hear a warning, so screen only
