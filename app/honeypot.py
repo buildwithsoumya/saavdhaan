@@ -334,7 +334,25 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         line = STALL.get(lang, STALL["hi"])  # never leave the caller in silence
     if closing and (line in [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])] or "?" in line):
         return GOODBYE.get(lang, GOODBYE["hi"])
+    if history and line == STALL.get(lang, STALL["hi"]) and lang in ("en", "hi"):
+        line = recovery_reply(history, lang, evidence)
     return fresh_stall(line, lang, history)
+
+
+def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
+    plan = plan_turn(history, evidence)
+    if plan.action in ("calm", "deescalate", "slow_down", "stall"):
+        return {"en": "Sorry, I am struggling to follow. Please explain slowly.",
+                "hi": "माफ़ कीजिए, मुझे समझ नहीं आ रहा। आप धीरे से समझाइए।"}[lang]
+    questions = {
+        "name": ("Please tell me your name?", "आप अपना नाम बताइए?"),
+        "department": ("Which department are you calling from?", "आप किस विभाग से बोल रहे हैं?"),
+        "bank": ("Which bank do you mean?", "आप किस बैंक की बात कर रहे हैं?"),
+        "account_holder": ("Whose name is the account in?", "खाता किसके नाम पर है?"),
+        "upi_or_account": ("Where are you asking me to send it?", "आप पैसा कहाँ भेजने को कह रहे हैं?"),
+    }
+    pair = questions.get(plan.target, ("Sorry, please explain that again.", "माफ़ कीजिए, आप फिर से समझाइए।"))
+    return pair[0 if lang == "en" else 1]
 
 
 def fresh_stall(line: str, lang: str, history: list[dict]) -> str:

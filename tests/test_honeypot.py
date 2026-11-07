@@ -297,6 +297,11 @@ def test_repeated_model_reply_uses_fresh_fallback():
     assert honeypot.fresh_stall(line, "en", [{"role": "assistant", "content": line}]) != line
 
 
+def test_recovery_does_not_ask_for_known_name():
+    line = honeypot.recovery_reply([{"role": "user", "content": "Transfer money"}], "en", {"name": "Verma"})
+    assert "send it" in line and "name" not in line
+
+
 def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
     def timeout(req):
         raise httpx.ReadTimeout("slow", request=req)
