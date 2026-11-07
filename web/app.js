@@ -347,7 +347,7 @@ function connect() {
     else if (m.type === "say") addLine(m.text, null, true);
     else if (m.type === "honeypot") {
       honeypotOn = m.on;
-      $("hp-done").hidden = m.reason !== "evidence";
+      $("hp-done").hidden = !["evidence", "timeout"].includes(m.reason);
       if (m.proof) renderProof(m.proof, m.facts);
       renderHoneypot();
     } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);

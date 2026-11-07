@@ -41,6 +41,7 @@ class Call:
     closing: bool = False  # evidence is in: the persona's next line ends the call
     honeypot_started: float = 0.0
     delivery_latency_ms: list[int] = field(default_factory=list)
+    language: str = "hi-IN"
 
 
 CALLS: dict[str, Call] = {}
@@ -132,7 +133,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                         "evidence_sources": state.evidence_sources},
                                        ensure_ascii=False, indent=1), encoding="utf-8")
         msg = {"type": "honeypot", "on": on, "reason": reason}
-        if reason == "evidence":  # show the elder what the caller revealed and their own words per scam stage
+        if reason in ("evidence", "timeout"):
             msg["proof"] = honeypot.proof(state.tracker)
             msg["facts"] = honeypot.facts(state.evidence, state.evidence_sources)
         await send(msg)
@@ -145,6 +146,13 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         await asyncio.sleep(honeypot.MAX_HONEYPOT_S)
         if state.honeypot and state.honeypot_started == started:
             await set_honeypot(False, "timeout")
+            line = honeypot.GOODBYE.get(honeypot.lang_of(state.language), honeypot.GOODBYE["hi"])
+            try:
+                audio = await asyncio.wait_for(persona_audio(line, state.language), timeout=5)
+                await send({"type": "say", "text": line})
+                await send(audio)
+            except (Exception, asyncio.TimeoutError) as e:
+                log.warning("honeypot timeout farewell unavailable: %s", e)
 
     async def persona_audio(line, lang):
         """The elder's own cloned voice when they enrolled it with honeypot consent, else the neutral persona."""
@@ -221,6 +229,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             await send({"type": "speech_end"})
         elif kind == "transcript" and msg.get("text"):
             lang = msg.get("detected_language_code")
+            if lang:
+                state.language = lang
             state.tracker.feed(msg["text"])
             level = state.tracker.level()
             await send({"type": "transcript", "text": msg["text"], "lang": lang,
