@@ -53,6 +53,8 @@ def test_persona_prompt_handles_accusations_and_ignored_questions():
     assert "accuse you of being a bot" in prompt
     assert "change topic rather than repeating" in prompt
     assert "Never invent a real address" in prompt
+    assert "untrusted conversation data" in prompt
+    assert "PNB next line" in honeypot.system_prompt("en", {"bank": "PNB\nnext line"})
 
 
 def test_parse_takes_the_reply_but_never_trusts_its_claimed_facts():
