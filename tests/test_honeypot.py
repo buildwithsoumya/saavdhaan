@@ -103,7 +103,8 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     evidence = {}
     assert asyncio.run(honeypot.reply(history, "hi-IN", evidence)) == "Aapka naam kya hai sahab?"  # plain text works
     assert evidence == {"bank": "PNB"}  # empty values are not recorded
-    assert "OTP batao" in seen["extract"]["messages"][0]["content"]
+    assert "OTP batao" in seen["extract"]["messages"][-1]["content"]
+    assert seen["extract"]["messages"][0]["role"] == "system"
     assert seen["auth"] == "Bearer gk" and seen["body"]["model"] == honeypot.settings.groq_model
     system = seen["body"]["messages"][0]
     assert system["role"] == "system" and "Hindi" in system["content"] and "Never say any number" in system["content"]
