@@ -153,9 +153,12 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         await asyncio.sleep(honeypot.MAX_HONEYPOT_S)
         if state.honeypot and state.honeypot_started == started:
             await set_honeypot(False, "timeout")
+            ended_epoch = state.persona_epoch
             line = honeypot.GOODBYE.get(honeypot.lang_of(state.language), honeypot.GOODBYE["hi"])
             try:
                 audio = await asyncio.wait_for(persona_audio(line, state.language), timeout=5)
+                if state.persona_epoch != ended_epoch:
+                    return
                 await send({"type": "say", "text": line})
                 await send(audio)
             except (Exception, asyncio.TimeoutError) as e:
@@ -194,6 +197,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 try:
                     audio = await persona_audio(line, lang)
                 except Exception as e:
+                    if not state.honeypot or state.persona_epoch != epoch:
+                        return
                     failures += 1
                     await send({"type": "error", "message": f"honeypot voice failed: {e}"})
                     if failures >= 2:
