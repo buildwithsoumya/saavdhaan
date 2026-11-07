@@ -43,3 +43,7 @@ def test_repeated_app_demands_get_a_different_obstacle():
 def test_repeated_otp_pressure_does_not_trigger_more_codes():
     plan = plan_turn(turns("OTP please", "Which office?", "Give OTP now"), {})
     assert plan.action == "stall" and "without asking them to resend" in plan.reason
+
+
+def test_urgency_asks_for_one_step_instead_of_a_new_checklist():
+    assert plan_turn(turns("Jaldi karo abhi"), {}).action == "slow_down"

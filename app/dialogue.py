@@ -21,6 +21,7 @@ THREAT = re.compile(r"arrest|jail|police.*(?:coming|door)|hurt|kill|गिरफ
 SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को मत|अकेले|kisi ko mat", re.I)
 DEVICE = re.compile(r"install|download|anydesk|teamviewer|open.*(?:app|link)|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
 PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओटीपी|पासवर्ड|आधार|सीवीवी", re.I)
+URGENCY = re.compile(r"hurry|quick|immediately|right now|jaldi|abhi|जल्दी|अभी", re.I)
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,9 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
         attempts = sum(bool(DEVICE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
         obstacle = ("cannot find the app", "download is not starting", "phone storage is full")[attempts % 3]
         return TurnPlan("stall", "app_or_link", f"Use this device obstacle: {obstacle}. Ask for an explanation without opening, installing, or reading a code.")
+    if URGENCY.search(caller):
+        return TurnPlan("slow_down", None,
+                        "Acknowledge the urgency, then ask for one instruction at a time. Do not claim to have acted or add a fresh identity question.")
     if "?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
