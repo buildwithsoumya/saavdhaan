@@ -131,7 +131,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             path.write_text(json.dumps({"history": state.history, "evidence": state.evidence,
                                         "end_reason": reason,
                                         "delivery_latency_ms": state.delivery_latency_ms,
-                                        "evidence_sources": state.evidence_sources},
+                                        "evidence_sources": state.evidence_sources,
+                                        "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
                                        ensure_ascii=False, indent=1), encoding="utf-8")
         msg = {"type": "honeypot", "on": on, "reason": reason}
         if reason in ("evidence", "timeout"):

@@ -192,6 +192,7 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
 def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
     """What the caller revealed, labelled, in a fixed order: shown to the elder as proof."""
     return [{"label": label, "value": evidence[k],
+             **({"alternatives": evidence.alternatives[k]} if isinstance(evidence, Evidence) and k in evidence.alternatives else {}),
              **({"said": sources[k]} if sources and k in sources else {})}
             for k, label in EVIDENCE.items() if k in evidence]
 
