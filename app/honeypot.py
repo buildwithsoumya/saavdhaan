@@ -295,6 +295,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
     `closing`: the evidence is in, so this line ends the call naturally."""
     lang = lang_of(code)
     evidence = {} if evidence is None else evidence
+    history = [dict(message) for message in history]  # a caller interruption cannot mutate an in-flight request
     # room for a reasoning model's thinking; the spoken reply itself is capped by safe()
     # no strict JSON mode: Groq rejects the whole reply when the model drifts into plain speech; parse() copes
     body = {"model": settings.groq_model, "temperature": 0.8, "max_tokens": 700,

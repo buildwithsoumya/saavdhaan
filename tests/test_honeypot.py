@@ -109,6 +109,7 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     system = seen["body"]["messages"][0]
     assert system["role"] == "system" and "Hindi" in system["content"] and "Never say any number" in system["content"]
     assert seen["body"]["messages"][1:] == history
+    assert history == [{"role": "user", "content": "PNB se bol raha hoon, OTP batao"}]
 
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
     assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.STALL["bn"]
