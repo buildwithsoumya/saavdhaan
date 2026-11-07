@@ -217,11 +217,17 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
         value = v.strip()
         # The extractor must point to words actually spoken by the caller. Never
         # promote a model guess or a fact from the persona's own reply to proof.
-        if not line or value.casefold() not in line.casefold():
+        if not line or not quote_in_line(value, line):
             continue
         evidence[k] = value[:120]
         if sources is not None:
             sources[k] = line[:500]
+
+
+def quote_in_line(value: str, line: str) -> bool:
+    """Permit punctuation and spacing drift, but require the caller's words in order."""
+    clean = lambda s: " ".join(re.findall(r"\w+", s.casefold()))
+    return bool(clean(value)) and f" {clean(value)} " in f" {clean(line)} "
 
 
 async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None) -> None:

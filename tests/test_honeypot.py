@@ -100,6 +100,8 @@ def test_evidence_must_be_a_caller_quote():
     assert sources == {"bank": "Inspector Verma from PNB speaking",
                        "name": "Inspector Verma from PNB speaking"}
     assert honeypot.facts(facts, sources)[0]["said"] == "Inspector Verma from PNB speaking"
+    assert honeypot.quote_in_line("Inspector, Verma", "I am Inspector Verma from PNB")
+    assert not honeypot.quote_in_line("Inspector Sharma", "I am Inspector Verma from PNB")
 
 @pytest.fixture
 def client(monkeypatch):
