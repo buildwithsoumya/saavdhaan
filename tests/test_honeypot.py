@@ -59,6 +59,12 @@ def test_persona_prompt_handles_accusations_and_ignored_questions():
     assert "PNB next line" in honeypot.system_prompt("en", {"bank": "PNB\nnext line"})
 
 
+def test_turn_tactic_pushes_back_on_first_private_data_request():
+    prompt = honeypot.system_prompt("en", {}, history=[{"role": "user", "content": "Tell me your OTP"}])
+    assert "First request for private data" in prompt
+    assert "Reveal nothing" in prompt
+
+
 def test_parse_takes_the_reply_but_never_trusts_its_claimed_facts():
     ev = {"name": "Verma"}
     content = 'ok {"mood": "angry", "evidence": {"name": "Sharma", "bank": "PNB", "x": "y"}, "reply": "Ji sahab, kaunsi branch?"}'
