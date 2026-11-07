@@ -31,3 +31,10 @@ def test_direct_questions_get_an_answer_before_an_evidence_request():
 def test_isolation_demand_never_becomes_a_promise_of_secrecy():
     plan = plan_turn(turns("Don't tell anyone, stay alone"), {})
     assert "Do not promise secrecy" in plan.reason
+
+
+def test_repeated_app_demands_get_a_different_obstacle():
+    first = plan_turn(turns("Install AnyDesk"), {})
+    second = plan_turn(turns("Install AnyDesk", "I cannot find it", "Download AnyDesk now"), {})
+    assert first.action == second.action == "stall"
+    assert first.reason != second.reason

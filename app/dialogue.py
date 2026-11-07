@@ -19,6 +19,7 @@ PAYMENT_DEMAND = re.compile(r"transfer|payment|send money|upi|पैसे|भ�
 REFUSAL = re.compile(r"won.t tell|not telling|stop asking|none of your business|no more questions|मत पूछ|नहीं बताऊ|mat pooch|nahi bata", re.I)
 THREAT = re.compile(r"arrest|jail|police.*(?:coming|door)|hurt|kill|गिरफ्तार|जेल|मार दू|giraftar", re.I)
 SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को मत|अकेले|kisi ko mat", re.I)
+DEVICE = re.compile(r"install|download|anydesk|teamviewer|open.*(?:app|link)|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,10 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if REFUSAL.search(caller):
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
+    if DEVICE.search(caller):
+        attempts = sum(bool(DEVICE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
+        obstacle = ("cannot find the app", "download is not starting", "phone storage is full")[attempts % 3]
+        return TurnPlan("stall", "app_or_link", f"Use this device obstacle: {obstacle}. Ask for an explanation without opening, installing, or reading a code.")
     if "?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
