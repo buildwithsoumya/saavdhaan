@@ -148,6 +148,7 @@ PAID = re.compile(
     r"\b(sent|transferred|paid|payment (is )?(done|made|complete)|made the payment|done the transfer)\b"
     r"|bhej (diya|diye|di)|transfer kar (diya|diye)|payment (ho gaya|kar diya)"
     r"|भेज दिए|भेज दिया|भेज दी|भेज चुका|भेज चुकी|ट्रांसफर कर दिया|पैसे डाल दिए|पेमेंट कर दिया|पेमेंट हो गया", re.I)
+ASSISTANT_VOICE = re.compile(r"\b(?:how can I help|happy to help|is there anything else|as an AI)\b", re.I)
 
 
 def lang_of(code: str | None) -> str:
@@ -159,7 +160,8 @@ def safe(reply: str, code: str | None) -> str:
     """Enforce the hard rules; anything doubtful becomes a stalling line."""
     lang = lang_of(code)
     text = re.sub(r"<[^>]*>|[\[\(].*?[\]\)]|\*", "", reply or "").strip()
-    if not text or DIGITS.search(text) or NUMBER_RUN.search(text) or PAID.search(text) or len(text) > 220 or len(text.split()) > 25:
+    if (not text or DIGITS.search(text) or NUMBER_RUN.search(text) or PAID.search(text)
+            or ASSISTANT_VOICE.search(text) or len(text) > 220 or len(text.split()) > 25):
         return STALL.get(lang, STALL["hi"])
     return text
 
