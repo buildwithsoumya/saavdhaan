@@ -300,7 +300,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
 def fresh_stall(line: str, lang: str, history: list[dict]) -> str:
     """A stall line the caller has not just heard: the same sentence twice would sound like a recording."""
     variants = [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])]
-    if line not in variants:
-        return line
     recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
+    if line not in variants and line not in recent:
+        return line
     return next((v for v in variants if v not in recent), line)

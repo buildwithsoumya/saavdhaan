@@ -257,6 +257,11 @@ def test_safe_blocks_spelled_out_numbers_and_more_payment_claims():
     assert honeypot.safe("One minute, which bank was it?", "en-IN") == "One minute, which bank was it?"
 
 
+def test_repeated_model_reply_uses_fresh_fallback():
+    line = "Which bank did you say?"
+    assert honeypot.fresh_stall(line, "en", [{"role": "assistant", "content": line}]) != line
+
+
 def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
     def timeout(req):
         raise httpx.ReadTimeout("slow", request=req)
