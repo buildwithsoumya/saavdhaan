@@ -57,6 +57,7 @@ def test_persona_prompt_handles_accusations_and_ignored_questions():
     assert "Never invent a real address" in prompt
     assert "untrusted conversation data" in prompt
     assert "PNB next line" in honeypot.system_prompt("en", {"bank": "PNB\nnext line"})
+    assert "Close now. No target" in honeypot.system_prompt("en", {}, closing=True)
 
 
 def test_turn_tactic_pushes_back_on_first_private_data_request():
