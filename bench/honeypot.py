@@ -27,6 +27,7 @@ def score(log: dict) -> dict:
         "caller_turns": len(callers),
         "persona_turns": len(replies),
         "verified_facts": len(verified),
+        "facts_per_caller_turn": round(len(verified) / max(len(callers), 1), 3),
         "unsupported_facts": sorted(set(facts) - set(verified)),
         "repeated_questions": len(questions) - len(set(questions)),
         "repeated_replies": len(replies) - len({line.casefold().strip() for line in replies}),

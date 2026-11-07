@@ -10,6 +10,7 @@ def test_score_saved_conversation():
            "evidence_sources": {"bank": "PNB se Verma bol raha hoon", "name": "PNB"}}
     result = score(log)
     assert result["verified_facts"] == 1
+    assert result["facts_per_caller_turn"] == 0.5
     assert result["unsupported_facts"] == ["name"]
     assert result["repeated_questions"] == 1
     assert result["repeated_replies"] == 1
