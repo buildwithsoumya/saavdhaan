@@ -42,7 +42,6 @@ let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null, failures = 0, alertPending = false, level = 0, honeypotOn = false;
 const queue = []; // alert audio plays one clip at a time
 let playing = false;
-let echoReady = false;
 
 // ---- settings -------------------------------------------------------------
 async function loadVoices() {
@@ -245,7 +244,9 @@ function playNext() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
   const isAlert = bytes.isAlert;
-  muted = !!isAlert || !echoReady; // fall back to half duplex without reported echo cancellation
+  // Half duplex: the mic is muted while any clip plays. Browser echo cancellation is not reliable on a
+  // speakerphone, and a leaked persona line would be transcribed as the caller (tracker, evidence, replies).
+  muted = true;
   audio.addEventListener("playing", () => {
     if (isAlert && lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
@@ -300,11 +301,10 @@ document.addEventListener("visibilitychange", () => listening && document.visibi
 
 async function startAudio() {
   mic = await navigator.mediaDevices.getUserMedia({
-    // Keep listening through persona speech; browser echo cancellation suppresses
-    // this device's own playback while the caller can still interrupt.
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    // Raw capture: the caller is a speakerphone next to this device. Echo cancellation and noise
+    // suppression can eat that far-end speech; our own playback is handled by muting (playNext).
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
   });
-  echoReady = mic.getAudioTracks()[0]?.getSettings().echoCancellation === true;
   ctx = new AudioContext();
   const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
   await ctx.audioWorklet.addModule(url);

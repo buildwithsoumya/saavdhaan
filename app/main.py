@@ -48,6 +48,7 @@ class Call:
 
 
 CALLS: dict[str, Call] = {}
+MAX_CALLER_TURN = 1000  # chars of one unbroken caller turn sent to the models
 MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
 CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
@@ -130,15 +131,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             state.honeypot_started = time.monotonic()
             spawn(limit_honeypot(state.honeypot_started))
         if not on and state.history:  # evidence log first, the browser may already be gone
-            path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"history": state.history, "evidence": state.evidence,
-                                        "end_reason": reason,
-                                        "delivery_latency_ms": state.delivery_latency_ms,
-                                        "turn_plans": state.turn_plans,
-                                        "evidence_sources": state.evidence_sources,
-                                        "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
-                                       ensure_ascii=False, indent=1), encoding="utf-8")
+            save_log(reason)
         msg = {"type": "honeypot", "on": on, "reason": reason}
         if reason in ("evidence", "timeout"):
             msg["proof"] = honeypot.proof(state.tracker)
@@ -148,6 +141,17 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
             state.alerted = level
             spawn(warn(level, lang))
+
+    def save_log(reason):
+        path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"history": state.history, "evidence": state.evidence,
+                                    "end_reason": reason,
+                                    "delivery_latency_ms": state.delivery_latency_ms,
+                                    "turn_plans": state.turn_plans,
+                                    "evidence_sources": state.evidence_sources,
+                                    "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
+                                   ensure_ascii=False, indent=1), encoding="utf-8")
 
     async def limit_honeypot(started):
         await asyncio.sleep(honeypot.MAX_HONEYPOT_S)
@@ -161,6 +165,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                     return
                 await send({"type": "say", "text": line})
                 await send(audio)
+                state.history.append({"role": "assistant", "content": line})  # the goodbye is part of the record
+                save_log("timeout")
             except (Exception, asyncio.TimeoutError) as e:
                 log.warning("honeypot timeout farewell unavailable: %s", e)
 
@@ -212,6 +218,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 state.history.append({"role": "assistant", "content": line})  # only lines actually spoken
                 await send({"type": "say", "text": line})
                 await send(audio)
+                if not state.honeypot or state.persona_epoch != epoch:
+                    return  # stopped or restarted while sending: never close or flag the new session
                 state.delivery_latency_ms.append(round((time.monotonic() - turn_started) * 1000))
                 state.turn_plans.append({"action": "close" if closing_now else plan.action,
                                          "target": None if closing_now else plan.target})
@@ -261,7 +269,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 spawn(warn(level, lang))
             if state.honeypot:
                 if state.history and state.history[-1]["role"] == "user":
-                    state.history[-1]["content"] += " " + msg["text"]  # caller kept talking: one turn
+                    state.history[-1]["content"] = (state.history[-1]["content"] + " " + msg["text"])[-MAX_CALLER_TURN:]  # caller kept talking: one turn, latest words kept
                 else:
                     state.history.append({"role": "user", "content": msg["text"]})
                 if not state.persona_busy:

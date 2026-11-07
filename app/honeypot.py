@@ -112,7 +112,7 @@ STALL = {
 
 STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
     "hi": ["अरे रुकिए साहब, फ़ोन की आवाज़ कट रही है। आप किस बैंक की बात कर रहे थे?",
-           "माफ़ कीजिए, मैं बहुत घबरा गई हूँ। आप धीरे से फिर बताइए, पैसा किसके नाम पर भेजना है?",
+           "माफ़ कीजिए, मुझे बहुत घबराहट हो रही है। आप धीरे से फिर बताइए, पैसा किसके नाम पर भेजना है?",
            "जी साहब, बैंक वाला ऐप खुल ही नहीं रहा। आप अपना पूरा नाम और विभाग बता दीजिए।"],
     "en": ["Sorry sir, the line is breaking. Which bank did you say?",
            "Please don't be angry, I am very scared. Whose name is the account in?",
@@ -125,13 +125,13 @@ PAYMENT = ("bank", "account_holder", "upi_or_account", "app_or_link")  # the mon
 MAX_EXCHANGES = 12  # unconditional turn cap
 MAX_HONEYPOT_S = 4 * 60
 GOODBYE = {
-    "hi": "अच्छा साहब, अभी दरवाज़े पर कोई आया है। मैं थोड़ी देर में बात करती हूँ।",
+    "hi": "अच्छा साहब, अभी दरवाज़े पर कोई आया है। थोड़ी देर में बात करते हैं।",  # gender-neutral: any persona
     "en": "Sorry, someone is at the door. I will call back in a little while.",
     "ta": "மன்னிக்கவும், வாசலில் யாரோ வந்திருக்கிறார்கள். சிறிது நேரத்தில் பேசுகிறேன்.",
     "bn": "দুঃখিত, দরজায় কেউ এসেছে। একটু পরে কথা বলছি।",
     "kn": "ಕ್ಷಮಿಸಿ, ಬಾಗಿಲಲ್ಲಿ ಯಾರೋ ಬಂದಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನಲ್ಲಿ ಮಾತನಾಡುತ್ತೇನೆ.",
     "te": "క్షమించండి, తలుపు దగ్గర ఎవరో వచ్చారు. కొద్దిసేపట్లో మాట్లాడతాను.",
-    "mr": "माफ करा, दारावर कोणीतरी आलं आहे. थोड्या वेळाने बोलते.",
+    "mr": "माफ करा, दारावर कोणीतरी आलं आहे. थोड्या वेळाने बोलूया.",
 }
 
 CLOSING = """
@@ -186,8 +186,9 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
         return True
     if exchanges < MIN_EXCHANGES or not {"S1", "S2", "S5"} <= tracker.active().keys():
         return False
-    return evidence is None or (bool(evidence.get("upi_or_account"))
-                                and "upi_or_account" not in getattr(evidence, "alternatives", {}))
+    # a caller who gives two different UPI IDs is still on record (alternatives are kept with their quotes),
+    # so a conflict must not block closing until the hard cap
+    return evidence is None or bool(evidence.get("upi_or_account"))
 
 
 def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
@@ -363,7 +364,7 @@ def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
         "department": ("Which department are you calling from?", "आप किस विभाग से बोल रहे हैं?"),
         "bank": ("Which bank do you mean?", "आप किस बैंक की बात कर रहे हैं?"),
         "account_holder": ("Whose name is the account in?", "खाता किसके नाम पर है?"),
-        "upi_or_account": ("Where are you asking me to send it?", "आप पैसा कहाँ भेजने को कह रहे हैं?"),
+        "upi_or_account": ("Where should this go, which account?", "यह किस खाते में जाना है?"),
     }
     pair = questions.get(plan.target, ("Sorry, please explain that again.", "माफ़ कीजिए, आप फिर से समझाइए।"))
     return pair[0 if lang == "en" else 1]
