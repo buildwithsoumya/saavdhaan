@@ -20,10 +20,12 @@ def test_latin_keywords_need_word_boundaries():
 
 def test_a_quiet_turn_is_followed_by_an_evidence_question():
     history = [{"role": "user", "content": "You will be arrested."},
-               {"role": "assistant", "content": "Oh no, please don't be angry, I am scared."},  # asked nothing
+               {"role": "assistant", "content": "Oh no, I am scared. What do you mean?"},  # a question, but no evidence asked
                {"role": "user", "content": "Arrest warrant is ready, transfer money now."}]
     plan = plan_turn(history, {})
     assert plan.action == "clarify" and plan.target == "upi_or_account"
+    history[1]["content"] = "Oh no. Which department are you calling from?"  # evidence was pursued last turn
+    assert plan_turn(history, {}).action == "calm"
 
 
 def test_a_contradiction_does_not_block_closing():

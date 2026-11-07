@@ -59,10 +59,10 @@ def repeats_reply(line: str, history: list[dict]) -> bool:
 
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     caller = history[-1].get("content", "") if history and history[-1].get("role") == "user" else ""
-    # Calm/answer/listen turns ask nothing. Scam scripts repeat "arrest" or "jaldi" every turn, so after one
-    # such turn the next one must pursue evidence (still answering the caller first). Safety stalls are exempt.
+    # Calm/answer/listen turns ask for no evidence. Scam scripts repeat "arrest" or "jaldi" every turn, so unless
+    # the last line asked for a field, this one must pursue evidence (still answering first). Safety stalls are exempt.
     last = next((m.get("content", "") for m in reversed(history[:-1]) if m.get("role") == "assistant"), None)
-    soft = last is None or "?" in last or "؟" in last
+    soft = last is None or bool(question_targets(last))
     if soft and THREAT.search(caller):
         return TurnPlan("calm", None,
                         "Acknowledge the frightening claim in a short reply. Ask what the caller means; avoid unrelated evidence questions this turn.")
