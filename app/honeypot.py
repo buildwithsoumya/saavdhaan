@@ -262,16 +262,23 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
 
     async def ask(c):
         # each Groq model has its own tokens-per-minute quota: a fast caller can exhaust one mid-call
+        last_error = None
         for model in dict.fromkeys([settings.groq_model, FALLBACK_MODEL]):
-            r = await c.post(GROQ_URL, json={**body, "model": model},
-                             headers={"Authorization": f"Bearer {settings.groq_api_key}"})
-            if r.status_code != 429:
-                break
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+            try:
+                r = await c.post(GROQ_URL, json={**body, "model": model},
+                                 headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+                r.raise_for_status()
+                return r.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPError as e:
+                last_error = e
+                if not isinstance(e, (httpx.TimeoutException, httpx.ConnectError)) and not (
+                    isinstance(e, httpx.HTTPStatusError) and e.response.status_code in (429, 500, 502, 503, 504)
+                ):
+                    raise
+        raise last_error
 
     try:
-        async with httpx.AsyncClient(timeout=15, transport=transport) as c:
+        async with httpx.AsyncClient(timeout=8, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
             content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence, sources) if caller else asyncio.sleep(0),

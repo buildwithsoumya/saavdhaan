@@ -266,6 +266,19 @@ def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
     assert asyncio.run(honeypot.reply([], "en-IN")) == honeypot.STALL["en"]
 
 
+def test_reply_model_timeout_uses_fallback_model(monkeypatch):
+    seen = []
+    def handler(req):
+        model = json.loads(req.content)["model"]
+        seen.append(model)
+        if model == honeypot.settings.groq_model:
+            raise httpx.ReadTimeout("slow", request=req)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Please tell me your name?"}}]})
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(handler))
+    assert asyncio.run(honeypot.reply([], "en-IN")) == "Please tell me your name?"
+    assert seen == [honeypot.settings.groq_model, honeypot.FALLBACK_MODEL]
+
+
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
