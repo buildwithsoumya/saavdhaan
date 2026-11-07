@@ -4,6 +4,7 @@ Plans choose a goal, never invent an answer or treat caller claims as verified i
 """
 import re
 import json
+from difflib import SequenceMatcher
 from dataclasses import dataclass
 
 FIELD_CUES = {
@@ -46,6 +47,14 @@ def memory_notes(history: list[dict]) -> str:
     return json.dumps({"first_spoken_replies": [line[:220] for line in spoken[:3]],
                        "questions_already_tried": sorted(set().union(*(question_targets(line) for line in spoken)))},
                       ensure_ascii=False)
+
+
+def repeats_reply(line: str, history: list[dict]) -> bool:
+    normalize = lambda text: " ".join(re.findall(r"\w+", text.casefold()))
+    candidate = normalize(line)
+    return any(candidate == normalize(m.get("content", "")) or
+               (len(candidate.split()) >= 4 and SequenceMatcher(None, candidate, normalize(m.get("content", ""))).ratio() > .88)
+               for m in history[-8:] if m.get("role") == "assistant")
 
 
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:

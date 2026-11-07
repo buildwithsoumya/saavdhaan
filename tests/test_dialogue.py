@@ -1,4 +1,4 @@
-from app.dialogue import memory_notes, plan_turn
+from app.dialogue import memory_notes, plan_turn, repeats_reply
 
 
 def turns(*lines):
@@ -62,3 +62,7 @@ def test_abandoned_questions_have_a_call_wide_attempt_budget():
 def test_memory_retains_early_persona_details_after_context_window():
     history = turns("Hello", "My glasses are on the table.") + turns("Continue", "Please repeat.") * 12
     assert "glasses are on the table" in memory_notes(history)
+
+
+def test_minor_rewording_does_not_evade_repetition_detection():
+    assert repeats_reply("Please tell me your full name, sir?", turns("Hello", "Please tell me your full name sir."))

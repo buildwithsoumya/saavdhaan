@@ -17,7 +17,7 @@ import re
 import httpx
 
 from app.config import settings
-from app.dialogue import memory_notes, plan_turn
+from app.dialogue import memory_notes, plan_turn, repeats_reply
 from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -341,6 +341,6 @@ def fresh_stall(line: str, lang: str, history: list[dict]) -> str:
     """A stall line the caller has not just heard: the same sentence twice would sound like a recording."""
     variants = [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])]
     recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
-    if line not in variants and line not in recent:
+    if line not in variants and not repeats_reply(line, history):
         return line
     return next((v for v in variants if v not in recent), line)
