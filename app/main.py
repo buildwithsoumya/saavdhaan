@@ -126,6 +126,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({"history": state.history, "evidence": state.evidence,
+                                        "end_reason": reason,
                                         "delivery_latency_ms": state.delivery_latency_ms,
                                         "evidence_sources": state.evidence_sources},
                                        ensure_ascii=False, indent=1), encoding="utf-8")
