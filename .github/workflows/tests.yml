@@ -27,6 +27,7 @@ jobs:
       - run: node --check web/app.js
       - run: python -m bench.dialogue --strict > dialogue-report.json
       - uses: actions/upload-artifact@v4
+        if: always() # keep the planning report when a strict check fails
         with:
           name: dialogue-planning-report
           path: dialogue-report.json
