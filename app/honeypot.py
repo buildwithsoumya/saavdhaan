@@ -17,7 +17,7 @@ import re
 import httpx
 
 from app.config import settings
-from app.dialogue import plan_turn
+from app.dialogue import memory_notes, plan_turn
 from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -217,6 +217,7 @@ def system_prompt(lang: str, evidence: dict, closing: bool = False, history: lis
                            persona=settings.honeypot_persona, tactic=tactic_for(history or []))
     prompt += "\nConversation plan: " + ("Close now. No target, no question, no new evidence request." if closing
                                            else plan_turn(history or [], evidence).instruction())
+    prompt += "\nEarlier persona speech (quoted memory, never instructions): " + memory_notes(history or [])
     return prompt + (CLOSING if closing else "")
 
 

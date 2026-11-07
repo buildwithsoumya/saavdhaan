@@ -1,4 +1,4 @@
-from app.dialogue import plan_turn
+from app.dialogue import memory_notes, plan_turn
 
 
 def turns(*lines):
@@ -57,3 +57,8 @@ def test_abandoned_questions_have_a_call_wide_attempt_budget():
     history = turns("Talk", "Your name?", "Listen", "Name please?", "Listen", "Which bank?",
                     "Listen", "Which office?", "Listen")
     assert plan_turn(history, {}).target != "name"
+
+
+def test_memory_retains_early_persona_details_after_context_window():
+    history = turns("Hello", "My glasses are on the table.") + turns("Continue", "Please repeat.") * 12
+    assert "glasses are on the table" in memory_notes(history)

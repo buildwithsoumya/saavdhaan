@@ -3,6 +3,7 @@
 Plans choose a goal, never invent an answer or treat caller claims as verified identity.
 """
 import re
+import json
 from dataclasses import dataclass
 
 FIELD_CUES = {
@@ -38,6 +39,13 @@ def question_targets(text: str) -> set[str]:
     if "?" not in text and "؟" not in text:
         return set()
     return {key for key, cue in FIELD_CUES.items() if re.search(cue, text, re.I)}
+
+
+def memory_notes(history: list[dict]) -> str:
+    spoken = [m.get("content", "") for m in history if m.get("role") == "assistant"]
+    return json.dumps({"first_spoken_replies": [line[:220] for line in spoken[:3]],
+                       "questions_already_tried": sorted(set().union(*(question_targets(line) for line in spoken)))},
+                      ensure_ascii=False)
 
 
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
