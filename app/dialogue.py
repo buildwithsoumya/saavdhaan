@@ -16,6 +16,7 @@ FIELD_CUES = {
     "app_or_link": r"app|link|website|ऐप|लिंक",
 }
 PAYMENT_DEMAND = re.compile(r"transfer|payment|send money|upi|पैसे|भेजो|ट्रांसफर|bhejo|paisa", re.I)
+REFUSAL = re.compile(r"won.t tell|not telling|stop asking|none of your business|no more questions|मत पूछ|नहीं बताऊ|mat pooch|nahi bata", re.I)
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,9 @@ def question_targets(text: str) -> set[str]:
 
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     caller = history[-1].get("content", "") if history and history[-1].get("role") == "user" else ""
+    if REFUSAL.search(caller):
+        return TurnPlan("deescalate", None,
+                        "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
     priority = (["upi_or_account", "account_holder", "bank"] if PAYMENT_DEMAND.search(caller) else [])
     priority += list(FIELD_CUES)
     recent_questions = [m["content"] for m in history[:-1] if m.get("role") == "assistant"][-2:]

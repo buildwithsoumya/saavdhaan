@@ -13,3 +13,8 @@ def test_payment_destination_takes_priority_and_known_facts_are_skipped():
 def test_ignored_question_cools_down_for_two_replies():
     plan = plan_turn(turns("Hello", "What is your name?", "Just listen to me"), {})
     assert plan.target != "name"
+
+
+def test_refusal_changes_strategy_instead_of_interrogating():
+    plan = plan_turn(turns("Stop asking questions, I am not telling you"), {})
+    assert plan.action == "deescalate" and plan.target is None
