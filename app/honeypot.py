@@ -171,9 +171,11 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
     return evidence is None or any(k in evidence for k in PAYMENT)
 
 
-def facts(evidence: dict) -> list[dict]:
+def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
     """What the caller revealed, labelled, in a fixed order: shown to the elder as proof."""
-    return [{"label": label, "value": evidence[k]} for k, label in EVIDENCE.items() if k in evidence]
+    return [{"label": label, "value": evidence[k],
+             **({"said": sources[k]} if sources and k in sources else {})}
+            for k, label in EVIDENCE.items() if k in evidence]
 
 
 def proof(tracker: Tracker) -> list[dict]:

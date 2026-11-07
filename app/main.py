@@ -130,7 +130,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         msg = {"type": "honeypot", "on": on, "reason": reason}
         if reason == "evidence":  # show the elder what the caller revealed and their own words per scam stage
             msg["proof"] = honeypot.proof(state.tracker)
-            msg["facts"] = honeypot.facts(state.evidence)
+            msg["facts"] = honeypot.facts(state.evidence, state.evidence_sources)
         await send(msg)
         level = state.tracker.level()
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked

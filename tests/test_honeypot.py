@@ -99,6 +99,7 @@ def test_evidence_must_be_a_caller_quote():
     assert facts == {"bank": "PNB", "name": "Inspector Verma"}
     assert sources == {"bank": "Inspector Verma from PNB speaking",
                        "name": "Inspector Verma from PNB speaking"}
+    assert honeypot.facts(facts, sources)[0]["said"] == "Inspector Verma from PNB speaking"
 
 @pytest.fixture
 def client(monkeypatch):
