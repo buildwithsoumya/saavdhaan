@@ -64,6 +64,9 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if URGENCY.search(caller):
         return TurnPlan("slow_down", None,
                         "Acknowledge the urgency, then ask for one instruction at a time. Do not claim to have acted or add a fresh identity question.")
+    if caller.strip().casefold().rstrip(".!?") in ("hello", "yes", "okay", "ok", "hmm", "haan", "जी", "हाँ", "हां"):
+        return TurnPlan("listen", None,
+                        "This is only a short acknowledgement. Briefly acknowledge it and invite the caller to continue; infer no new facts.")
     if "?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")

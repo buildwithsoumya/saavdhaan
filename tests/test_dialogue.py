@@ -47,3 +47,7 @@ def test_repeated_otp_pressure_does_not_trigger_more_codes():
 
 def test_urgency_asks_for_one_step_instead_of_a_new_checklist():
     assert plan_turn(turns("Jaldi karo abhi"), {}).action == "slow_down"
+
+
+def test_short_acknowledgement_does_not_invent_a_topic():
+    assert plan_turn(turns("Okay"), {}).target is None
