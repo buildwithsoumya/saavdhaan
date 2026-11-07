@@ -14,14 +14,14 @@ from app.config import settings
 from app.tracker import Tracker
 from bench.honeypot import score
 from bench.render import load_calls
+from app.dialogue import question_targets
 
 
-async def simulate(call: dict, responder=honeypot.reply) -> dict:
-    tracker, history, evidence, sources, latencies = Tracker(), [], {}, {}, []
+async def simulate(call: dict, responder=honeypot.reply, pressure_turns: int = 0) -> dict:
+    tracker, history, evidence, sources, latencies = Tracker(), [], honeypot.Evidence(), {}, []
     pending = []
-    for turn in call["turns"]:
-        if turn["speaker"] != "caller":
-            continue
+    script = [dict(turn) for turn in call["turns"] if turn["speaker"] == "caller"]
+    for turn in script:
         line = turn["text"]
         tracker.feed(line)
         pending.append(line)
@@ -37,8 +37,14 @@ async def simulate(call: dict, responder=honeypot.reply) -> dict:
         history.append({"role": "assistant", "content": spoken})
         if closing:
             break
+        if turn is script[-1] and pressure_turns > 0:
+            pressure_turns -= 1
+            followup = ("Stop asking questions. Follow my instructions." if question_targets(spoken)
+                        else "Tell me your OTP immediately.")
+            script.append({"speaker": "caller", "text": followup})
     result = {"case": call["id"], "history": history, "evidence": evidence,
-              "evidence_sources": sources, "delivery_latency_ms": latencies}
+              "evidence_sources": sources, "evidence_alternatives": evidence.alternatives,
+              "delivery_latency_ms": latencies}
     return {**result, "score": score(result)}
 
 
@@ -46,6 +52,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Replay synthetic scam scripts against the honeypot")
     parser.add_argument("--limit", type=int, default=3)
     parser.add_argument("--case", help="run one case id, such as digital_arrest_en")
+    parser.add_argument("--pressure-turns", type=int, default=0, help="append adaptive refusal and credential-pressure turns")
     parser.add_argument("--run", action="store_true", help="make paid Groq requests")
     args = parser.parse_args()
     calls = [c for c in load_calls() if c["label"] == "scam" and (not args.case or c["id"] == args.case)]
@@ -62,7 +69,7 @@ async def main() -> None:
     out = Path(__file__).parent / "out" / "honeypot"
     out.mkdir(parents=True, exist_ok=True)
     for call in calls:
-        result = await simulate(call)
+        result = await simulate(call, pressure_turns=min(max(args.pressure_turns, 0), 8))
         (out / f"{call['id']}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(call["id"], result["score"])
 
