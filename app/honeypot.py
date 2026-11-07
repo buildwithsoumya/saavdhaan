@@ -120,6 +120,7 @@ STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
 }
 FALLBACK_MODEL = "openai/gpt-oss-20b"
 EXTRACT_MODEL = "qwen/qwen3.8-27b"  # fast, separate quota; runs alongside the reply so it adds no delay
+EXTRACTION_BUDGET_S = 1.5
 PAYMENT = ("bank", "account_holder", "upi_or_account", "app_or_link")  # the money trail a complaint needs
 MAX_EXCHANGES = 12  # unconditional turn cap
 MAX_HONEYPOT_S = 4 * 60
@@ -291,6 +292,13 @@ async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict
         log.warning("honeypot evidence extraction failed: %s", e)  # the reply still goes out
 
 
+async def extract_bounded(c, line, evidence, sources):
+    try:
+        await asyncio.wait_for(extract(c, line, evidence, sources), timeout=EXTRACTION_BUDGET_S)
+    except asyncio.TimeoutError:
+        log.warning("honeypot extraction exceeded its turn budget")
+
+
 async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False,
                 sources: dict | None = None) -> str:
     """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant.
@@ -327,7 +335,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         async with httpx.AsyncClient(timeout=8, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
-            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence, sources) if caller else asyncio.sleep(0),
+            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources) if caller else asyncio.sleep(0),
                                               return_exceptions=True)
         if isinstance(content, BaseException):
             raise content

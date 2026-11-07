@@ -343,6 +343,18 @@ def test_failed_closing_reply_uses_a_goodbye(monkeypatch):
     assert "?" not in line
 
 
+def test_slow_extraction_cannot_hold_the_reply_open(monkeypatch):
+    async def slow(*args):
+        await asyncio.sleep(10)
+    monkeypatch.setattr(honeypot, "extract", slow)
+    monkeypatch.setattr(honeypot, "EXTRACTION_BUDGET_S", .01)
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(
+        200, json={"choices": [{"message": {"content": "Please explain that again."}}]})))
+    async def run():
+        return await asyncio.wait_for(honeypot.reply([{"role": "user", "content": "Listen"}], "en-IN"), .5)
+    assert asyncio.run(run()) == "Please explain that again."
+
+
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
