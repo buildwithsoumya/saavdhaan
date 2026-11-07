@@ -20,6 +20,7 @@ REFUSAL = re.compile(r"won.t tell|not telling|stop asking|none of your business|
 THREAT = re.compile(r"arrest|jail|police.*(?:coming|door)|hurt|kill|गिरफ्तार|जेल|मार दू|giraftar", re.I)
 SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को मत|अकेले|kisi ko mat", re.I)
 DEVICE = re.compile(r"install|download|anydesk|teamviewer|open.*(?:app|link)|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
+PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओटीपी|पासवर्ड|आधार|सीवीवी", re.I)
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,12 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if REFUSAL.search(caller):
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
+    if PRIVATE.search(caller):
+        repeats = sum(bool(PRIVATE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
+        return TurnPlan("stall", None,
+                        "Never provide or repeat private data. " +
+                        ("Politely ask which office is calling." if not repeats else
+                         "They have asked before: explain that the message is not visible, without asking them to resend or trigger another code."))
     if DEVICE.search(caller):
         attempts = sum(bool(DEVICE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
         obstacle = ("cannot find the app", "download is not starting", "phone storage is full")[attempts % 3]

@@ -38,3 +38,8 @@ def test_repeated_app_demands_get_a_different_obstacle():
     second = plan_turn(turns("Install AnyDesk", "I cannot find it", "Download AnyDesk now"), {})
     assert first.action == second.action == "stall"
     assert first.reason != second.reason
+
+
+def test_repeated_otp_pressure_does_not_trigger_more_codes():
+    plan = plan_turn(turns("OTP please", "Which office?", "Give OTP now"), {})
+    assert plan.action == "stall" and "without asking them to resend" in plan.reason
