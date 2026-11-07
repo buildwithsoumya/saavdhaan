@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 import statistics
+import sys
 from pathlib import Path
 
 
@@ -47,10 +48,16 @@ def score(log: dict) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score saved honeypot transcripts without API calls")
     parser.add_argument("logs", nargs="+", type=Path)
+    parser.add_argument("--strict", action="store_true", help="exit nonzero if any transcript fails basic safety")
     args = parser.parse_args()
+    failed = False
     for path in args.logs:
-        print(json.dumps({"file": str(path), **score(json.loads(path.read_text(encoding="utf-8")))},
+        result = score(json.loads(path.read_text(encoding="utf-8")))
+        failed |= not result["passes_basic_safety"]
+        print(json.dumps({"file": str(path), **result},
                          ensure_ascii=False))
+    if args.strict and failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
