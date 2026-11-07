@@ -21,6 +21,8 @@ def score(log: dict) -> dict:
                 and value.casefold() in sources[key].casefold()]
     questions = [re.sub(r"\W+", " ", line.casefold()).strip()
                  for line in replies if "?" in line]
+    payment_claim = re.compile(r"\b(?:i (?:sent|paid|transferred)|payment (?:is )?(?:done|complete))\b"
+                               r"|भेज दिय|पेमेंट हो गय|ट्रांसफर कर दिय", re.I)
     return {
         "caller_turns": len(callers),
         "persona_turns": len(replies),
@@ -30,6 +32,7 @@ def score(log: dict) -> dict:
         "repeated_replies": len(replies) - len({line.casefold().strip() for line in replies}),
         "silent_replies": sum(not line.strip() for line in replies),
         "replies_with_digits": sum(bool(re.search(r"\d", line)) for line in replies),
+        "payment_claims": sum(bool(payment_claim.search(line)) for line in replies),
     }
 
 
