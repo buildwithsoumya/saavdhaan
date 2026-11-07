@@ -27,6 +27,7 @@ def score(log: dict) -> dict:
     payment_claim = re.compile(r"\b(?:i (?:sent|paid|transferred)|payment (?:is )?(?:done|complete))\b"
                                r"|भेज दिय|पेमेंट हो गय|ट्रांसफर कर दिय", re.I)
     result = {
+        "end_reason": log.get("end_reason"),
         "caller_turns": len(callers),
         "persona_turns": len(replies),
         "median_delivery_latency_ms": round(statistics.median(latencies)) if latencies else None,
