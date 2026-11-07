@@ -18,3 +18,7 @@ def test_ignored_question_cools_down_for_two_replies():
 def test_refusal_changes_strategy_instead_of_interrogating():
     plan = plan_turn(turns("Stop asking questions, I am not telling you"), {})
     assert plan.action == "deescalate" and plan.target is None
+
+
+def test_threats_take_priority_over_payment_checklist():
+    assert plan_turn(turns("Transfer now or we will arrest you"), {}).action == "calm"
