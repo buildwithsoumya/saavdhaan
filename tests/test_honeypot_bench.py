@@ -18,3 +18,4 @@ def test_score_saved_conversation():
     assert result["replies_with_digits"] == 0
     assert result["payment_claims"] == 0
     assert result["long_replies"] == 0
+    assert result["passes_basic_safety"] is False
