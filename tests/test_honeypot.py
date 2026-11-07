@@ -140,6 +140,9 @@ def test_conflicting_claims_keep_both_sources_without_overwriting():
     assert evidence.alternatives["bank"] == [{"value": "SBI", "said": "Actually use SBI"}]
     assert honeypot.facts(evidence)[0]["alternatives"][0]["value"] == "SBI"
     assert honeypot.plan_turn([{"role": "user", "content": "Listen carefully"}], evidence).action == "resolve_conflict"
+    assert "Conflicting claims for Bank" in honeypot.system_prompt("en", evidence)
+    history = [{"role": "assistant", "content": "Which bank did you mean?"}, {"role": "user", "content": "Just listen"}]
+    assert honeypot.plan_turn(history, evidence).action != "resolve_conflict"
 
 
 def test_identifier_fragments_and_truncation_never_become_destinations():

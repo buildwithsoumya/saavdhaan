@@ -223,6 +223,8 @@ def system_prompt(lang: str, evidence: dict, closing: bool = False, history: lis
         v = " ".join(v.split())[:120]
         return "given (contains a number: never say it)" if DIGITS.search(v) or NUMBER_RUN.search(v) else v
     known = "\n".join(f"- {EVIDENCE[k]}: {shown(v)}" for k, v in evidence.items() if k in EVIDENCE) or "- nothing yet"
+    for key, alternatives in getattr(evidence, "alternatives", {}).items():
+        known += "\n- Conflicting claims for " + EVIDENCE[key] + ": " + json.dumps([shown(item["value"]) for item in alternatives], ensure_ascii=False)
     missing = "\n".join(f"- {label}" for k, label in EVIDENCE.items() if k not in evidence) or "- nothing: keep them talking"
     prompt = SYSTEM.format(language=LANG_NAMES[lang], known=known, missing=missing, fields=", ".join(EVIDENCE),
                            persona=settings.honeypot_persona, tactic=tactic_for(history or []))

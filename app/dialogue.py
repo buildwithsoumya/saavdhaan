@@ -84,11 +84,6 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if caller.strip().casefold().rstrip(".!?") in ("hello", "yes", "okay", "ok", "hmm", "haan", "जी", "हाँ", "हां"):
         return TurnPlan("listen", None,
                         "This is only a short acknowledgement. Briefly acknowledge it and invite the caller to continue; infer no new facts.")
-    conflicts = getattr(evidence, "alternatives", {})
-    if conflicts:
-        field = next(iter(conflicts))
-        return TurnPlan("resolve_conflict", field,
-                        "The caller gave different claims for this field. Ask which claim they mean without reading identifiers or numbers back. Do not choose one yourself.")
     if "?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
@@ -98,6 +93,11 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     cooling = set().union(*(question_targets(line) for line in recent_questions))
     attempts = {field: sum(field in question_targets(m.get("content", "")) for m in history
                            if m.get("role") == "assistant") for field in FIELD_CUES}
+    conflicts = getattr(evidence, "alternatives", {})
+    field = next((key for key in conflicts if key not in cooling and attempts.get(key, 0) < 2), None)
+    if field:
+        return TurnPlan("resolve_conflict", field,
+                        "The caller gave different claims for this field. Ask which claim they mean without reading identifiers or numbers back. Do not choose one yourself.")
     target = next((field for field in priority if field not in evidence and field not in cooling
                    and attempts[field] < 2), None)
     return TurnPlan("clarify" if target else "listen", target,
