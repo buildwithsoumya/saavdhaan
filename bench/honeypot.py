@@ -7,6 +7,7 @@ Run: python -m bench.honeypot data/honeypot/*.json
 import argparse
 import json
 import re
+import statistics
 from pathlib import Path
 
 
@@ -16,6 +17,7 @@ def score(log: dict) -> dict:
     callers = [m.get("content", "") for m in history if m.get("role") == "user"]
     facts = log.get("evidence", {})
     sources = log.get("evidence_sources", {})
+    latencies = log.get("delivery_latency_ms", [])
     verified = [key for key, value in facts.items()
                 if isinstance(value, str) and isinstance(sources.get(key), str)
                 and value.casefold() in sources[key].casefold()]
@@ -26,6 +28,7 @@ def score(log: dict) -> dict:
     result = {
         "caller_turns": len(callers),
         "persona_turns": len(replies),
+        "median_delivery_latency_ms": round(statistics.median(latencies)) if latencies else None,
         "verified_facts": len(verified),
         "facts_per_caller_turn": round(len(verified) / max(len(callers), 1), 3),
         "unsupported_facts": sorted(set(facts) - set(verified)),

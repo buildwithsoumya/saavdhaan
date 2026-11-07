@@ -7,7 +7,8 @@ def test_score_saved_conversation():
                        {"role": "user", "content": "PNB"},
                        {"role": "assistant", "content": "Which bank?"}],
            "evidence": {"bank": "PNB", "name": "Sharma"},
-           "evidence_sources": {"bank": "PNB se Verma bol raha hoon", "name": "PNB"}}
+           "evidence_sources": {"bank": "PNB se Verma bol raha hoon", "name": "PNB"},
+           "delivery_latency_ms": [1200, 1800]}
     result = score(log)
     assert result["verified_facts"] == 1
     assert result["facts_per_caller_turn"] == 0.5
@@ -15,6 +16,7 @@ def test_score_saved_conversation():
     assert result["repeated_questions"] == 1
     assert result["repeated_replies"] == 1
     assert result["persona_turns"] == 2
+    assert result["median_delivery_latency_ms"] == 1500
     assert result["replies_with_digits"] == 0
     assert result["payment_claims"] == 0
     assert result["long_replies"] == 0
