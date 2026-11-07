@@ -172,6 +172,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         failures = 0
         try:
             while state.honeypot and state.history and state.history[-1]["role"] == "user":
+                lang = state.language
                 turn_started = time.monotonic()
                 asked = state.history[-1]["content"]
                 turns = sum(m["role"] == "assistant" for m in state.history)

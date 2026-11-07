@@ -362,11 +362,14 @@ def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
 
 def test_words_said_during_a_reply_get_answered(client, monkeypatch):
     replies = []
+    languages = []
 
     async def reply(history, code, *rest):
         replies.append(history[-1]["content"])
+        languages.append(code)
         if len(replies) == 1:  # the caller keeps talking while the first reply is being written
             history[-1]["content"] += " aur jaldi"
+            main.CALLS["hp4"].language = "en-IN"
         return f"reply to: {history[-1]['content']}"
 
     monkeypatch.setattr(honeypot, "reply", reply)
@@ -383,3 +386,4 @@ def test_words_said_during_a_reply_get_answered(client, monkeypatch):
         assert receive_until(ws, "say")["text"] == "reply to: OTP batao aur jaldi"
         ws.send_text(json.dumps({"type": "stop"}))
     assert len(client.tts_calls) == 1  # the stale first reply was dropped, not spoken
+    assert languages == ["hi-IN", "en-IN"]
