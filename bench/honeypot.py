@@ -5,6 +5,7 @@ deterministic: it uses only the words and provenance already saved by Saavdhaan.
 Run: python -m bench.honeypot data/honeypot/*.json
 """
 import argparse
+import glob
 import json
 import re
 import statistics
@@ -48,11 +49,14 @@ def score(log: dict) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score saved honeypot transcripts without API calls")
-    parser.add_argument("logs", nargs="+", type=Path)
+    parser.add_argument("logs", nargs="+", help="JSON paths or glob patterns")
     parser.add_argument("--strict", action="store_true", help="exit nonzero if any transcript fails basic safety")
     args = parser.parse_args()
     failed = False
-    for path in args.logs:
+    paths = [Path(p) for pattern in args.logs for p in glob.glob(pattern)]
+    if not paths:
+        parser.error("no honeypot logs matched")
+    for path in paths:
         result = score(json.loads(path.read_text(encoding="utf-8")))
         failed |= not result["passes_basic_safety"]
         print(json.dumps({"file": str(path), **result},
