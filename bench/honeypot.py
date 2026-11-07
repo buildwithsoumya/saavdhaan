@@ -28,6 +28,7 @@ def score(log: dict) -> dict:
         "unsupported_facts": sorted(set(facts) - set(verified)),
         "repeated_questions": len(questions) - len(set(questions)),
         "silent_replies": sum(not line.strip() for line in replies),
+        "replies_with_digits": sum(bool(re.search(r"\d", line)) for line in replies),
     }
 
 

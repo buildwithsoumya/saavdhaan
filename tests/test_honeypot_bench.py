@@ -13,3 +13,4 @@ def test_score_saved_conversation():
     assert result["unsupported_facts"] == ["name"]
     assert result["repeated_questions"] == 1
     assert result["persona_turns"] == 2
+    assert result["replies_with_digits"] == 0
