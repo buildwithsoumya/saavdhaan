@@ -109,7 +109,17 @@ STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
 FALLBACK_MODEL = "openai/gpt-oss-20b"
 EXTRACT_MODEL = "qwen/qwen3.8-27b"  # fast, separate quota; runs alongside the reply so it adds no delay
 PAYMENT = ("bank", "account_holder", "upi_or_account", "app_or_link")  # the money trail a complaint needs
-MAX_EXCHANGES = 12  # with authority, threat and a money ask on record, stop even without a money trail
+MAX_EXCHANGES = 12  # unconditional turn cap
+MAX_HONEYPOT_S = 4 * 60
+GOODBYE = {
+    "hi": "अच्छा साहब, अभी दरवाज़े पर कोई आया है। मैं थोड़ी देर में बात करती हूँ।",
+    "en": "Sorry, someone is at the door. I will call back in a little while.",
+    "ta": "மன்னிக்கவும், வாசலில் யாரோ வந்திருக்கிறார்கள். சிறிது நேரத்தில் பேசுகிறேன்.",
+    "bn": "দুঃখিত, দরজায় কেউ এসেছে। একটু পরে কথা বলছি।",
+    "kn": "ಕ್ಷಮಿಸಿ, ಬಾಗಿಲಲ್ಲಿ ಯಾರೋ ಬಂದಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನಲ್ಲಿ ಮಾತನಾಡುತ್ತೇನೆ.",
+    "te": "క్షమించండి, తలుపు దగ్గర ఎవరో వచ్చారు. కొద్దిసేపట్లో మాట్లాడతాను.",
+    "mr": "माफ करा, दारावर कोणीतरी आलं आहे. थोड्या वेळाने बोलते.",
+}
 
 CLOSING = """
 
@@ -153,11 +163,12 @@ def safe(reply: str, code: str | None) -> str:
 
 
 def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = None) -> bool:
-    """Authority claimed, threat made, money asked, enough conversation, and (when the caller's facts are
-    tracked) a money trail: where they wanted the money sent. A long call stops anyway at MAX_EXCHANGES."""
+    """Stop at the hard cap, or after enough scam evidence and a payment destination."""
+    if exchanges >= MAX_EXCHANGES:
+        return True
     if exchanges < MIN_EXCHANGES or not {"S1", "S2", "S5"} <= tracker.active().keys():
         return False
-    return evidence is None or any(k in evidence for k in PAYMENT) or exchanges >= MAX_EXCHANGES
+    return evidence is None or any(k in evidence for k in PAYMENT)
 
 
 def facts(evidence: dict) -> list[dict]:
@@ -261,6 +272,8 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         # a failing model must be visible: otherwise every turn silently becomes a stall line
         log.warning("honeypot reply failed, stalling instead: %s %s", e, getattr(getattr(e, "response", None), "text", "")[:200])
         line = STALL.get(lang, STALL["hi"])  # never leave the caller in silence
+    if closing and (line in [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])] or "?" in line):
+        return GOODBYE.get(lang, GOODBYE["hi"])
     return fresh_stall(line, lang, history)
 
 

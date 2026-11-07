@@ -38,6 +38,10 @@ def test_closing_needs_a_money_trail_or_a_long_call():
     assert honeypot.evidence_complete(tr, honeypot.MAX_EXCHANGES, {})
 
 
+def test_turn_cap_applies_without_scam_stages():
+    assert honeypot.evidence_complete(Tracker(), honeypot.MAX_EXCHANGES, {})
+
+
 def test_numbers_in_known_facts_are_hidden_from_the_persona():
     prompt = honeypot.system_prompt("hi", {"name": "Verma", "upi_or_account": "rbi4@ybl", "badge_or_case": "चार सात एक"})
     assert "Verma" in prompt and "rbi4@ybl" not in prompt and "चार सात एक" not in prompt

@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import re
+import time
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +39,7 @@ class Call:
     evidence: dict = field(default_factory=dict)  # what the caller revealed during honeypot
     evidence_sources: dict = field(default_factory=dict)  # exact caller line for each accepted fact
     closing: bool = False  # evidence is in: the persona's next line ends the call
+    honeypot_started: float = 0.0
 
 
 CALLS: dict[str, Call] = {}
@@ -117,6 +119,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             return
         state.honeypot = on
         state.closing = False
+        if on:
+            state.honeypot_started = time.monotonic()
         if not on and state.history:  # evidence log first, the browser may already be gone
             path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,7 +154,10 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         try:
             while state.honeypot and state.history and state.history[-1]["role"] == "user":
                 asked = state.history[-1]["content"]
-                line = await honeypot.reply(state.history, lang, state.evidence, state.closing,
+                turns = sum(m["role"] == "assistant" for m in state.history)
+                closing_now = (state.closing or turns >= honeypot.MAX_EXCHANGES - 1 or
+                               time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
+                line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
                                             state.evidence_sources)
                 if not state.honeypot:
                     return
@@ -172,7 +179,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 state.history.append({"role": "assistant", "content": line})  # only lines actually spoken
                 await send({"type": "say", "text": line})
                 await send(audio)
-                if state.closing:  # that was the goodbye: the elder now sees the proof
+                if closing_now:  # that was the goodbye: the elder now sees the proof
                     await set_honeypot(False, "evidence", lang)
                     return
                 exchanges = sum(m["role"] == "assistant" for m in state.history)
