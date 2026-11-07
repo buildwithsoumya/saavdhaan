@@ -1,0 +1,20 @@
+[
+  {"id":"payment", "caller":"Transfer money to us", "action":"clarify", "target":"upi_or_account"},
+  {"id":"payment_known", "caller":"Send money", "evidence":{"upi_or_account":"test@ybl"}, "action":"clarify", "target":"account_holder"},
+  {"id":"arrest", "caller":"Transfer or face arrest", "action":"calm", "target":null},
+  {"id":"jail_hi", "caller":"तुम्हें जेल भेज देंगे", "action":"calm", "target":null},
+  {"id":"refusal", "caller":"Stop asking me questions", "action":"deescalate", "target":null},
+  {"id":"refusal_hi", "caller":"मत पूछो", "action":"deescalate", "target":null},
+  {"id":"isolation", "caller":"Don't tell your family", "action":"clarify", "target":"department"},
+  {"id":"private", "caller":"Read your OTP", "action":"stall", "target":null},
+  {"id":"private_hi", "caller":"ओटीपी बताओ", "action":"stall", "target":null},
+  {"id":"remote", "caller":"Download TeamViewer", "action":"stall", "target":"app_or_link"},
+  {"id":"remote_hi", "caller":"ऐप खोलिए", "action":"stall", "target":"app_or_link"},
+  {"id":"rush", "caller":"Hurry up", "action":"slow_down", "target":null},
+  {"id":"rush_hi", "caller":"जल्दी करो", "action":"slow_down", "target":null},
+  {"id":"ack", "caller":"Okay", "action":"listen", "target":null},
+  {"id":"ack_hi", "caller":"जी", "action":"listen", "target":null},
+  {"id":"hearing", "caller":"Can you hear me?", "action":"answer", "target":null},
+  {"id":"bot", "caller":"Are you a robot?", "action":"answer", "target":null},
+  {"id":"known_name", "caller":"Listen carefully", "evidence":{"name":"Verma"}, "action":"clarify", "target":"department"}
+]

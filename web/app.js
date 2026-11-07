@@ -201,7 +201,7 @@ function renderHoneypot() {
 
 const STAGE_HI = Object.fromEntries(STAGES.map(([id, hi]) => [id, hi]));
 function renderProof(items, facts = []) {
-  $("hp-facts").innerHTML = facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>${f.said ? `<small>“${esc(f.said)}”</small>` : ""}</div>`).join("");
+  $("hp-facts").innerHTML = facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>${f.said ? `<small>“${esc(f.said)}”</small>` : ""}${(f.alternatives || []).map(a => `<dd>अलग दावा · Different claim: ${esc(a.value)}</dd><small>“${esc(a.said)}”</small>`).join("")}</div>`).join("");
   $("hp-proof-list").innerHTML = items.map((p) =>
     `<li><b>${STAGE_HI[p.stage] || ""} · ${esc(p.name)}: “${esc(p.phrase)}”</b>${esc(p.said)}</li>`).join("");
   $("hp-proof").hidden = items.length === 0 && facts.length === 0;

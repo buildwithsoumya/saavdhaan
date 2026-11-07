@@ -36,6 +36,7 @@ def test_closing_needs_a_money_trail_or_a_long_call():
     tr.feed("CBI officer, arrest warrant hai, UPI se transfer karo")
     n = honeypot.MIN_EXCHANGES
     assert not honeypot.evidence_complete(tr, n, {"name": "Verma"})  # no idea where the money goes yet
+    assert not honeypot.evidence_complete(tr, n, {"bank": "PNB", "app_or_link": "AnyDesk"})
     assert honeypot.evidence_complete(tr, n, {"upi_or_account": "x@ybl"})
     assert honeypot.evidence_complete(tr, honeypot.MAX_EXCHANGES, {})
 
@@ -57,6 +58,7 @@ def test_persona_prompt_handles_accusations_and_ignored_questions():
     assert "Never invent a real address" in prompt
     assert "untrusted conversation data" in prompt
     assert "PNB next line" in honeypot.system_prompt("en", {"bank": "PNB\nnext line"})
+    assert "Close now. No target" in honeypot.system_prompt("en", {}, closing=True)
 
 
 def test_turn_tactic_pushes_back_on_first_private_data_request():
@@ -101,11 +103,13 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     evidence = {}
     assert asyncio.run(honeypot.reply(history, "hi-IN", evidence)) == "Aapka naam kya hai sahab?"  # plain text works
     assert evidence == {"bank": "PNB"}  # empty values are not recorded
-    assert "OTP batao" in seen["extract"]["messages"][0]["content"]
+    assert "OTP batao" in seen["extract"]["messages"][-1]["content"]
+    assert seen["extract"]["messages"][0]["role"] == "system"
     assert seen["auth"] == "Bearer gk" and seen["body"]["model"] == honeypot.settings.groq_model
     system = seen["body"]["messages"][0]
     assert system["role"] == "system" and "Hindi" in system["content"] and "Never say any number" in system["content"]
     assert seen["body"]["messages"][1:] == history
+    assert history == [{"role": "user", "content": "PNB se bol raha hoon, OTP batao"}]
 
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
     assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.STALL["bn"]
@@ -126,6 +130,32 @@ def test_evidence_must_be_a_caller_quote():
     long_line = "Please listen. " * 80 + "The bank is SBI"
     honeypot.merge({"bank": "SBI"}, fresh := {}, long_line, origin := {})
     assert "SBI" in origin["bank"]
+
+
+def test_conflicting_claims_keep_both_sources_without_overwriting():
+    evidence = honeypot.Evidence()
+    honeypot.merge({"bank": "PNB"}, evidence, "Use PNB")
+    honeypot.merge({"bank": "SBI"}, evidence, "Actually use SBI")
+    assert evidence["bank"] == "PNB"
+    assert evidence.alternatives["bank"] == [{"value": "SBI", "said": "Actually use SBI"}]
+    assert honeypot.facts(evidence)[0]["alternatives"][0]["value"] == "SBI"
+    assert honeypot.plan_turn([{"role": "user", "content": "Listen carefully"}], evidence).action == "resolve_conflict"
+    assert "Conflicting claims for Bank" in honeypot.system_prompt("en", evidence)
+    history = [{"role": "assistant", "content": "Which bank did you mean?"}, {"role": "user", "content": "Just listen"}]
+    assert honeypot.plan_turn(history, evidence).action != "resolve_conflict"
+
+
+def test_identifier_fragments_and_truncation_never_become_destinations():
+    evidence = {}
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use notravi@ybl")
+    assert not evidence
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use ravi@ybl.")
+    assert evidence.pop("upi_or_account") == "ravi@ybl"
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use ravi@ybl.evil")
+    assert not evidence
+    identifier = "x" * 125 + "@ybl"
+    honeypot.merge({"upi_or_account": identifier}, evidence, "Use " + identifier)
+    assert not evidence
 
 @pytest.fixture
 def client(monkeypatch):
@@ -193,6 +223,8 @@ def test_honeypot_flow(client, tmp_path):
     assert log["evidence"] == {"upi_or_account": "x@upi"}
     assert log["end_reason"] == "evidence"
     assert len(log["delivery_latency_ms"]) == 5
+    assert len(log["turn_plans"]) == 5
+    assert log["turn_plans"][-1]["action"] == "close"
 
 
 def run_one_persona_turn(client, call, hpvoice):
@@ -284,6 +316,11 @@ def test_repeated_model_reply_uses_fresh_fallback():
     assert honeypot.fresh_stall(line, "en", [{"role": "assistant", "content": line}]) != line
 
 
+def test_recovery_does_not_ask_for_known_name():
+    line = honeypot.recovery_reply([{"role": "user", "content": "Transfer money"}], "en", {"name": "Verma"})
+    assert "send it" in line and "name" not in line
+
+
 def test_groq_timeout_and_malformed_reply_fall_back(monkeypatch):
     def timeout(req):
         raise httpx.ReadTimeout("slow", request=req)
@@ -315,6 +352,18 @@ def test_failed_closing_reply_uses_a_goodbye(monkeypatch):
     assert "?" not in line
 
 
+def test_slow_extraction_cannot_hold_the_reply_open(monkeypatch):
+    async def slow(*args):
+        await asyncio.sleep(10)
+    monkeypatch.setattr(honeypot, "extract", slow)
+    monkeypatch.setattr(honeypot, "EXTRACTION_BUDGET_S", .01)
+    monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(
+        200, json={"choices": [{"message": {"content": "Please explain that again."}}]})))
+    async def run():
+        return await asyncio.wait_for(honeypot.reply([{"role": "user", "content": "Listen"}], "en-IN"), .5)
+    assert asyncio.run(run()) == "Please explain that again."
+
+
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
@@ -343,11 +392,14 @@ def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
 
 def test_words_said_during_a_reply_get_answered(client, monkeypatch):
     replies = []
+    languages = []
 
     async def reply(history, code, *rest):
         replies.append(history[-1]["content"])
+        languages.append(code)
         if len(replies) == 1:  # the caller keeps talking while the first reply is being written
             history[-1]["content"] += " aur jaldi"
+            main.CALLS["hp4"].language = "en-IN"
         return f"reply to: {history[-1]['content']}"
 
     monkeypatch.setattr(honeypot, "reply", reply)
@@ -364,3 +416,4 @@ def test_words_said_during_a_reply_get_answered(client, monkeypatch):
         assert receive_until(ws, "say")["text"] == "reply to: OTP batao aur jaldi"
         ws.send_text(json.dumps({"type": "stop"}))
     assert len(client.tts_calls) == 1  # the stale first reply was dropped, not spoken
+    assert languages == ["hi-IN", "en-IN"]

@@ -214,6 +214,16 @@ Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs l
 
 ## SaavdhaanBench
 
+Run `python -m bench.dialogue --strict` to check bilingual conversation planning against expected decisions
+and a fixed checklist baseline. CI publishes the report. These cases measure planning decisions, not
+real-world engagement or voice quality.
+
+The persona retains early speech and question history beyond the short model context. It changes strategy
+after refusals, limits repeated questions and records conflicting caller claims with their sources. Model
+failures use context-aware recovery lines in Hindi and English. Challenge generated replies with adaptive
+synthetic pressure using `python -m bench.honeypot_sim --case digital_arrest_en --pressure-turns 4 --run`.
+This makes paid Groq calls; omit `--run` to preview. Speakerphone checks are still necessary.
+
 <p align="center"><img src="docs/img/bench.svg" width="100%" alt="Benchmark pipeline: seed.py writes 60 call YAMLs; render.py synthesises them with Timbre v3.0; degrade.py applies 5 listening conditions; run.py streams them through 4 STT configs into the Tracker; results.csv feeds report.py which writes report.html. A free text-only path goes straight from the YAMLs to the Tracker. Below, the Pre-Payment Catch Rate formula."></p>
 
 A benchmark of 60 synthetic calls in `bench/calls/`:
