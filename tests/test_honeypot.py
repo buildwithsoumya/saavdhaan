@@ -36,6 +36,7 @@ def test_closing_needs_a_money_trail_or_a_long_call():
     tr.feed("CBI officer, arrest warrant hai, UPI se transfer karo")
     n = honeypot.MIN_EXCHANGES
     assert not honeypot.evidence_complete(tr, n, {"name": "Verma"})  # no idea where the money goes yet
+    assert not honeypot.evidence_complete(tr, n, {"bank": "PNB", "app_or_link": "AnyDesk"})
     assert honeypot.evidence_complete(tr, n, {"upi_or_account": "x@ybl"})
     assert honeypot.evidence_complete(tr, honeypot.MAX_EXCHANGES, {})
 

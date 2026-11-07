@@ -177,7 +177,7 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
         return True
     if exchanges < MIN_EXCHANGES or not {"S1", "S2", "S5"} <= tracker.active().keys():
         return False
-    return evidence is None or any(k in evidence for k in PAYMENT)
+    return evidence is None or bool(evidence.get("upi_or_account"))
 
 
 def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
