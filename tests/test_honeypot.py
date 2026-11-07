@@ -44,11 +44,11 @@ def test_numbers_in_known_facts_are_hidden_from_the_persona():
     assert prompt.count("never say it") == 2
 
 
-def test_parse_takes_the_reply_records_facts_and_never_speaks_broken_json():
+def test_parse_takes_the_reply_but_never_trusts_its_claimed_facts():
     ev = {"name": "Verma"}
     content = 'ok {"mood": "angry", "evidence": {"name": "Sharma", "bank": "PNB", "x": "y"}, "reply": "Ji sahab, kaunsi branch?"}'
     assert honeypot.parse(content, ev) == "Ji sahab, kaunsi branch?"
-    assert ev == {"name": "Verma", "bank": "PNB"}  # first answer kept, unknown fields dropped
+    assert ev == {"name": "Verma"}
     assert honeypot.parse('{"reply": "half', ev) == ""
     assert honeypot.parse("Ji sahab", ev) == "Ji sahab"
 
@@ -67,7 +67,7 @@ def test_groq_request_and_failure_fallback(monkeypatch):
 
     monkeypatch.setattr(honeypot.settings, "groq_api_key", "gk")
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(handler))
-    history = [{"role": "user", "content": "OTP batao"}]
+    history = [{"role": "user", "content": "PNB se bol raha hoon, OTP batao"}]
     evidence = {}
     assert asyncio.run(honeypot.reply(history, "hi-IN", evidence)) == "Aapka naam kya hai sahab?"  # plain text works
     assert evidence == {"bank": "PNB"}  # empty values are not recorded
@@ -80,6 +80,14 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
     assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.STALL["bn"]
 
+
+def test_evidence_must_be_a_caller_quote():
+    facts, sources = {}, {}
+    honeypot.merge({"bank": "PNB", "name": "Inspector Verma", "upi_or_account": "x@ybl"},
+                    facts, "Inspector Verma from PNB speaking", sources)
+    assert facts == {"bank": "PNB", "name": "Inspector Verma"}
+    assert sources == {"bank": "Inspector Verma from PNB speaking",
+                       "name": "Inspector Verma from PNB speaking"}
 
 @pytest.fixture
 def client(monkeypatch):
@@ -97,7 +105,7 @@ def client(monkeypatch):
         tts_calls.append((text, voice, language))
         return b"PERSONA"
 
-    async def fake_reply(history, code, evidence=None, closing=False):
+    async def fake_reply(history, code, evidence=None, closing=False, sources=None):
         if evidence is not None and "UPI" in history[-1]["content"]:
             evidence["upi_or_account"] = "x@upi"  # stands in for the extraction step
         return f"{'bye' if closing else 'reply'} {len(history)}"

@@ -176,7 +176,7 @@ def system_prompt(lang: str, evidence: dict, closing: bool = False) -> str:
 
 
 def parse(content: str, evidence: dict) -> str:
-    """The spoken line from the model's JSON; revealed facts are merged into `evidence`.
+    """The spoken line from the model's JSON. Facts come only from caller extraction.
     Plain text (a model ignoring the format) is taken as the line itself; broken JSON is never spoken."""
     content = content or ""
     if "{" not in content:
@@ -187,17 +187,24 @@ def parse(content: str, evidence: dict) -> str:
         return ""  # half a JSON object read aloud would give the game away: stall instead
     if not isinstance(data, dict):
         return content
-    merge(data.get("evidence"), evidence)
     return data.get("reply") if isinstance(data.get("reply"), str) else ""
 
 
-def merge(found, evidence: dict) -> None:
+def merge(found, evidence: dict, line: str = "", sources: dict | None = None) -> None:
     for k, v in (found.items() if isinstance(found, dict) else ()):
-        if k in EVIDENCE and isinstance(v, str) and v.strip() and k not in evidence:
-            evidence[k] = v.strip()[:120]  # first answer wins: a later "I told you!" never overwrites it
+        if k not in EVIDENCE or not isinstance(v, str) or not v.strip() or k in evidence:
+            continue
+        value = v.strip()
+        # The extractor must point to words actually spoken by the caller. Never
+        # promote a model guess or a fact from the persona's own reply to proof.
+        if not line or value.casefold() not in line.casefold():
+            continue
+        evidence[k] = value[:120]
+        if sources is not None:
+            sources[k] = line[:500]
 
 
-async def extract(c: httpx.AsyncClient, line: str, evidence: dict) -> None:
+async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None) -> None:
     """Record what the caller just revealed. Separate from the reply: one model doing both forgets facts."""
     body = {"model": EXTRACT_MODEL, "temperature": 0, "max_tokens": 300, "reasoning_effort": "none",
             "response_format": {"type": "json_object"},
@@ -205,12 +212,13 @@ async def extract(c: httpx.AsyncClient, line: str, evidence: dict) -> None:
     try:
         r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
         r.raise_for_status()
-        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence)
+        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence, line, sources)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
         log.warning("honeypot evidence extraction failed: %s", e)  # the reply still goes out
 
 
-async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False) -> str:
+async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False,
+                sources: dict | None = None) -> str:
     """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant.
     `evidence` is the call's running record of what the caller revealed; it is updated in place.
     `closing`: the evidence is in, so this line ends the call naturally."""
@@ -237,7 +245,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         async with httpx.AsyncClient(timeout=15, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
-            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence) if caller else asyncio.sleep(0),
+            content, _ = await asyncio.gather(ask(c), extract(c, caller, evidence, sources) if caller else asyncio.sleep(0),
                                               return_exceptions=True)
         if isinstance(content, BaseException):
             raise content
