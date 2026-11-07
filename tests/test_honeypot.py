@@ -171,6 +171,7 @@ def test_honeypot_flow(client, tmp_path):
     log = json.loads((tmp_path / "honeypot" / "hp1.json").read_text(encoding="utf-8"))
     assert [m["role"] for m in log["history"]] == ["user", "assistant"] * 5
     assert log["evidence"] == {"upi_or_account": "x@upi"}
+    assert len(log["delivery_latency_ms"]) == 5
 
 
 def run_one_persona_turn(client, call, hpvoice):
