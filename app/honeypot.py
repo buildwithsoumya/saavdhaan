@@ -251,9 +251,12 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
         if k not in EVIDENCE or not isinstance(v, str) or not v.strip():
             continue
         value = v.strip()
+        if len(value) > 120:
+            continue  # never turn a truncated destination into an accepted identifier
         # The extractor must point to words actually spoken by the caller. Never
         # promote a model guess or a fact from the persona's own reply to proof.
-        matched = (value.casefold() in line.casefold() if k in ("upi_or_account", "app_or_link", "badge_or_case")
+        matched = (bool(re.search(r"(?<![\w@./-])" + re.escape(value) + r"(?![\w@./-])", line, re.I))
+                   if k in ("upi_or_account", "app_or_link", "badge_or_case")
                    else quote_in_line(value, line))
         if not line or not matched:
             continue
@@ -263,7 +266,7 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
                 if not any(item["value"].casefold() == value.casefold() for item in alternatives):
                     alternatives.append({"value": value, "said": line})
             continue
-        evidence[k] = value[:120]
+        evidence[k] = value
         if sources is not None:
             sources[k] = line
 

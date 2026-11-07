@@ -141,6 +141,15 @@ def test_conflicting_claims_keep_both_sources_without_overwriting():
     assert honeypot.facts(evidence)[0]["alternatives"][0]["value"] == "SBI"
     assert honeypot.plan_turn([{"role": "user", "content": "Listen carefully"}], evidence).action == "resolve_conflict"
 
+
+def test_identifier_fragments_and_truncation_never_become_destinations():
+    evidence = {}
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use notravi@ybl")
+    assert not evidence
+    identifier = "x" * 125 + "@ybl"
+    honeypot.merge({"upi_or_account": identifier}, evidence, "Use " + identifier)
+    assert not evidence
+
 @pytest.fixture
 def client(monkeypatch):
     FakeStream.instances, FakeStream.script = [], []
