@@ -239,11 +239,13 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
         value = v.strip()
         # The extractor must point to words actually spoken by the caller. Never
         # promote a model guess or a fact from the persona's own reply to proof.
-        if not line or not quote_in_line(value, line):
+        matched = (value.casefold() in line.casefold() if k in ("upi_or_account", "app_or_link", "badge_or_case")
+                   else quote_in_line(value, line))
+        if not line or not matched:
             continue
         evidence[k] = value[:120]
         if sources is not None:
-            sources[k] = line[:500]
+            sources[k] = line
 
 
 def quote_in_line(value: str, line: str) -> bool:

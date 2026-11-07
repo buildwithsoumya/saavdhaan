@@ -122,6 +122,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         state.closing = False
         if on:
             state.honeypot_started = time.monotonic()
+            spawn(limit_honeypot(state.honeypot_started))
         if not on and state.history:  # evidence log first, the browser may already be gone
             path = Path(settings.data_dir) / "honeypot" / f"{call}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -139,6 +140,11 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if not on and reason != "ended" and level > state.alerted:  # the warning held back while the persona talked
             state.alerted = level
             spawn(warn(level, lang))
+
+    async def limit_honeypot(started):
+        await asyncio.sleep(honeypot.MAX_HONEYPOT_S)
+        if state.honeypot and state.honeypot_started == started:
+            await set_honeypot(False, "timeout")
 
     async def persona_audio(line, lang):
         """The elder's own cloned voice when they enrolled it with honeypot consent, else the neutral persona."""

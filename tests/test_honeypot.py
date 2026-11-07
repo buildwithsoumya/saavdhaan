@@ -121,6 +121,11 @@ def test_evidence_must_be_a_caller_quote():
     assert honeypot.facts(facts, sources)[0]["said"] == "Inspector Verma from PNB speaking"
     assert honeypot.quote_in_line("Inspector, Verma", "I am Inspector Verma from PNB")
     assert not honeypot.quote_in_line("Inspector Sharma", "I am Inspector Verma from PNB")
+    honeypot.merge({"upi_or_account": "ravi.kumar@ybl"}, facts, "Transfer to ravi-kumar@ybl", sources)
+    assert "upi_or_account" not in facts
+    long_line = "Please listen. " * 80 + "The bank is SBI"
+    honeypot.merge({"bank": "SBI"}, fresh := {}, long_line, origin := {})
+    assert "SBI" in origin["bank"]
 
 @pytest.fixture
 def client(monkeypatch):

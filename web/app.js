@@ -42,6 +42,7 @@ let listening = false, callId = null, retry = 0;
 let muted = false, lastSpeechEnd = null, failures = 0, alertPending = false, level = 0, honeypotOn = false;
 const queue = []; // alert audio plays one clip at a time
 let playing = false;
+let echoReady = false;
 
 // ---- settings -------------------------------------------------------------
 async function loadVoices() {
@@ -244,7 +245,7 @@ function playNext() {
   const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
   const audio = new Audio(url);
   const isAlert = bytes.isAlert;
-  muted = !!isAlert; // persona speech stays audible to STT after echo cancellation
+  muted = !!isAlert || !echoReady; // fall back to half duplex without reported echo cancellation
   audio.addEventListener("playing", () => {
     if (isAlert && lastSpeechEnd != null) $("latency").textContent = `${Math.round(performance.now() - lastSpeechEnd)} ms`;
   }, { once: true });
@@ -303,6 +304,7 @@ async function startAudio() {
     // this device's own playback while the caller can still interrupt.
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
+  echoReady = mic.getAudioTracks()[0]?.getSettings().echoCancellation === true;
   ctx = new AudioContext();
   const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
   await ctx.audioWorklet.addModule(url);
