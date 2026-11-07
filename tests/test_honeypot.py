@@ -149,6 +149,10 @@ def test_identifier_fragments_and_truncation_never_become_destinations():
     evidence = {}
     honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use notravi@ybl")
     assert not evidence
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use ravi@ybl.")
+    assert evidence.pop("upi_or_account") == "ravi@ybl"
+    honeypot.merge({"upi_or_account": "ravi@ybl"}, evidence, "Use ravi@ybl.evil")
+    assert not evidence
     identifier = "x" * 125 + "@ybl"
     honeypot.merge({"upi_or_account": identifier}, evidence, "Use " + identifier)
     assert not evidence

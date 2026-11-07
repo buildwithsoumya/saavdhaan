@@ -258,7 +258,7 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
             continue  # never turn a truncated destination into an accepted identifier
         # The extractor must point to words actually spoken by the caller. Never
         # promote a model guess or a fact from the persona's own reply to proof.
-        matched = (bool(re.search(r"(?<![\w@./-])" + re.escape(value) + r"(?![\w@./-])", line, re.I))
+        matched = (bool(re.search(r"(?<![\w@./-])" + re.escape(value) + r"(?![\w@/-]|\.(?=\S))", line, re.I))
                    if k in ("upi_or_account", "app_or_link", "badge_or_case")
                    else quote_in_line(value, line))
         if not line or not matched:
@@ -350,7 +350,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         return GOODBYE.get(lang, GOODBYE["hi"])
     if history and line == STALL.get(lang, STALL["hi"]) and lang in ("en", "hi"):
         line = recovery_reply(history, lang, evidence)
-    return fresh_stall(line, lang, history)
+    return fresh_stall(line, lang, history, evidence)
 
 
 def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
@@ -369,9 +369,14 @@ def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
     return pair[0 if lang == "en" else 1]
 
 
-def fresh_stall(line: str, lang: str, history: list[dict]) -> str:
+def fresh_stall(line: str, lang: str, history: list[dict], evidence: dict | None = None) -> str:
     """A stall line the caller has not just heard: the same sentence twice would sound like a recording."""
     variants = [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])]
+    if evidence is not None and lang in ("en", "hi"):
+        variants = (["Sorry, please explain that slowly.", "I am still trying to understand. Please go on.",
+                     "The line is unclear. Please repeat the last instruction."] if lang == "en" else
+                    ["माफ़ कीजिए, आप धीरे से समझाइए।", "मुझे समझने में समय लग रहा है। आप बोलिए।",
+                     "आवाज़ साफ़ नहीं आ रही। आखिरी बात फिर से बताइए।"])
     recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
     if line not in variants and not repeats_reply(line, history):
         return line
