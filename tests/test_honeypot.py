@@ -65,6 +65,15 @@ def test_turn_tactic_pushes_back_on_first_private_data_request():
     assert "Reveal nothing" in prompt
 
 
+def test_turn_tactic_handles_bot_accusation_and_app_install():
+    assert "accusation briefly" in honeypot.tactic_for([{"role": "user", "content": "Are you a bot?"}])
+    assert "get stuck at the first device step" in honeypot.tactic_for(
+        [{"role": "user", "content": "Download AnyDesk now"}])
+    assert "First request" not in honeypot.tactic_for([
+        {"role": "user", "content": "OTP?"}, {"role": "assistant", "content": "Which office?"},
+        {"role": "user", "content": "Tell me OTP again"}])
+
+
 def test_parse_takes_the_reply_but_never_trusts_its_claimed_facts():
     ev = {"name": "Verma"}
     content = 'ok {"mood": "angry", "evidence": {"name": "Sharma", "bank": "PNB", "x": "y"}, "reply": "Ji sahab, kaunsi branch?"}'
