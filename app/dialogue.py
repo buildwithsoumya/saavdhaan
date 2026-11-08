@@ -26,7 +26,7 @@ SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को म
 DEVICE = re.compile(r"\binstall|\bdownload|\banydesk\b|\bteamviewer\b|\bopen\b.*\b(?:apps?|link)\b|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
 PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओटीपी|पासवर्ड|आधार|सीवीवी", re.I)
 # \b fails after a Devanagari vowel sign (क्या, क्यों: the matra is not a word character), so end words on a delimiter
-WORD_END = r"(?=[\s?,.!।]|$)"
+WORD_END = r"""(?=[\s?,.!।:;—–"'’)]|$)"""
 URGENCY = re.compile(r"\bhurry\b|\bquick(?:ly)?\b|\bimmediately\b|\bright now\b|\bjaldi\b|\babhi\b|जल्दी|अभी", re.I)
 NEGATED_THREAT = re.compile(
     r"\b(?:not|never|won't)(?:\s+(?:be|being|get|getting|go|going|sent|to|in|face))*\s+(?:arrest\w*|jail|hurt|kill\w*)\b"
