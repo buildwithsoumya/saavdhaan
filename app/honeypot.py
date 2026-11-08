@@ -99,6 +99,41 @@ class Evidence(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.alternatives: dict[str, list[dict]] = {}
+        self.claim_history: dict[str, list[dict]] = {}
+        self.statuses: dict[str, str] = {}
+        self.pending_corrections: dict[str, dict] = {}
+
+    def observe(self, key, value, line, sources):
+        history = self.claim_history.setdefault(key, [])
+        observation = {"value": value, "said": line}
+        if observation in history:
+            return
+        history.append(observation)
+        if key not in self:
+            self[key] = value
+            self.statuses[key] = "claimed"
+            if sources is not None:
+                sources[key] = line
+            return
+        pending = self.pending_corrections.get(key)
+        confirms = re.search(r"\b(?:yes|correct|confirmed)\b|सही|हाँ|हां", line, re.I)
+        denies = re.search(r"\b(?:no|not|never|incorrect)\b|नहीं|गलत", line, re.I)
+        if pending and pending["value"].casefold() == value.casefold() and line != pending["said"] and confirms and not denies:
+            self[key] = value
+            self.statuses[key] = "confirmed"
+            self.alternatives.pop(key, None)
+            self.pending_corrections.pop(key, None)
+            if sources is not None:
+                sources[key] = line
+            return
+        if self[key].casefold() == value.casefold():
+            return
+        alternatives = self.alternatives.setdefault(key, [])
+        if not any(item["value"].casefold() == value.casefold() for item in alternatives):
+            alternatives.append(observation)
+        self.statuses[key] = "disputed"
+        if re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I):
+            self.pending_corrections[key] = observation
 
 
 STALL = {
@@ -196,6 +231,7 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
 def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
     """What the caller revealed, labelled, in a fixed order: shown to the elder as proof."""
     return [{"label": label, "value": evidence[k],
+             **({"status": evidence.statuses[k]} if isinstance(evidence, Evidence) and k in evidence.statuses else {}),
              **({"alternatives": evidence.alternatives[k]} if isinstance(evidence, Evidence) and k in evidence.alternatives else {}),
              **({"said": sources[k]} if sources and k in sources else {})}
             for k, label in EVIDENCE.items() if k in evidence]
@@ -266,11 +302,10 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
                    else quote_in_line(value, line))
         if not line or not matched:
             continue
+        if isinstance(evidence, Evidence):
+            evidence.observe(k, value, line, sources)
+            continue
         if k in evidence:
-            if isinstance(evidence, Evidence) and evidence[k].casefold() != value.casefold():
-                alternatives = evidence.alternatives.setdefault(k, [])
-                if not any(item["value"].casefold() == value.casefold() for item in alternatives):
-                    alternatives.append({"value": value, "said": line})
             continue
         evidence[k] = value
         if sources is not None:

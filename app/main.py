@@ -150,7 +150,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                     "delivery_latency_ms": state.delivery_latency_ms,
                                     "turn_plans": state.turn_plans,
                                     "evidence_sources": state.evidence_sources,
-                                    "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
+                                    "evidence_alternatives": getattr(state.evidence, "alternatives", {}),
+                                    "evidence_history": getattr(state.evidence, "claim_history", {}),
+                                    "evidence_statuses": getattr(state.evidence, "statuses", {})},
                                    ensure_ascii=False, indent=1), encoding="utf-8")
 
     async def limit_honeypot(started):
