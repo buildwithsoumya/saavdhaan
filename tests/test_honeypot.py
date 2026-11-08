@@ -17,7 +17,7 @@ def test_safe_blocks_numbers_payment_claims_and_tags():
     assert honeypot.safe("मैंने पैसे भेज दिए", "hi-IN") == honeypot.STALL["hi"]
     assert honeypot.safe("<whispers> (nervous) Which bank did you say, sir?", "en-IN") == "Which bank did you say, sir?"
     assert honeypot.safe("", "ta-IN") == honeypot.STALL["ta"]
-    assert honeypot.safe("x" * 300, "gu-IN") == honeypot.STALL["hi"]  # unknown language falls back
+    assert honeypot.safe("x" * 300, "xx-IN") == honeypot.STALL["hi"]
     assert honeypot.safe("hello " * 26, "en-IN") == honeypot.STALL["en"]
     assert honeypot.safe("How can I help you today?", "en-IN") == honeypot.STALL["en"]
 
@@ -112,7 +112,7 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     assert history == [{"role": "user", "content": "PNB se bol raha hoon, OTP batao"}]
 
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
-    assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.STALL["bn"]
+    assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.NEUTRAL_RECOVERY["bn"]
 
 
 def test_evidence_must_be_a_caller_quote():
@@ -173,7 +173,7 @@ def client(monkeypatch):
         tts_calls.append((text, voice, language))
         return b"PERSONA"
 
-    async def fake_reply(history, code, evidence=None, closing=False, sources=None):
+    async def fake_reply(history, code, evidence=None, closing=False, sources=None, **kwargs):
         if evidence is not None and "UPI" in history[-1]["content"]:
             evidence["upi_or_account"] = "x@upi"  # stands in for the extraction step
         return f"{'bye' if closing else 'reply'} {len(history)}"
@@ -181,6 +181,9 @@ def client(monkeypatch):
     monkeypatch.setattr(alerts, "alert_audio", fake_alert)
     monkeypatch.setattr(gnani, "tts", fake_tts)
     monkeypatch.setattr(honeypot, "reply", fake_reply)
+    async def fake_extract(line):
+        return {}
+    monkeypatch.setattr(honeypot, "extract_claims", fake_extract)
     c = TestClient(main.app)
     c.alert_calls, c.tts_calls = alert_calls, tts_calls
     return c
@@ -367,7 +370,7 @@ def test_slow_extraction_cannot_hold_the_reply_open(monkeypatch):
 def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
     gate = asyncio.Event()
 
-    async def slow_reply(history, code, *rest):
+    async def slow_reply(history, code, *rest, **kwargs):
         await gate.wait()
         return "too late"
 
@@ -394,7 +397,7 @@ def test_words_said_during_a_reply_get_answered(client, monkeypatch):
     replies = []
     languages = []
 
-    async def reply(history, code, *rest):
+    async def reply(history, code, *rest, **kwargs):
         replies.append(history[-1]["content"])
         languages.append(code)
         if len(replies) == 1:  # the caller keeps talking while the first reply is being written
@@ -417,3 +420,31 @@ def test_words_said_during_a_reply_get_answered(client, monkeypatch):
         ws.send_text(json.dumps({"type": "stop"}))
     assert len(client.tts_calls) == 1  # the stale first reply was dropped, not spoken
     assert languages == ["hi-IN", "en-IN"]
+
+
+def test_background_extraction_does_not_block_speech_and_is_cancelled_on_stop(client, monkeypatch):
+    import threading
+    started, cancelled = threading.Event(), threading.Event()
+    async def blocked_extract(line):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+    monkeypatch.setattr(honeypot, "extract_claims", blocked_extract)
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana"), said("OTP batao")]
+    with client.websocket_connect("/ws?call=background") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        receive_until(ws, "audio")
+        ws.send_text(json.dumps({"type": "honeypot", "on": True}))
+        receive_until(ws, "honeypot")
+        ws.send_bytes(b"\0" * 1024)
+        receive_until(ws, "say")
+        assert started.wait(2)
+        ws.send_text(json.dumps({"type": "honeypot", "on": False}))
+        receive_until(ws, "honeypot")
+        ws.send_text(json.dumps({"type": "stop"}))
+    assert cancelled.wait(2)

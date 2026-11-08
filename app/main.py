@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import alerts, enrol, gnani, honeypot, report
 from app.honeypot import Evidence
+from app.extraction_order import OrderedResults
 from app.config import settings
 from app.tracker import Tracker, keyterms
 
@@ -103,6 +104,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     state.socket = ws
     send_lock = asyncio.Lock()
     alert_tasks = set()
+    extraction_tasks = set()
+    extraction_by_turn = {}
+    extraction_order = OrderedResults()
 
     async def send(payload):
         """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
@@ -121,10 +125,14 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         task.add_done_callback(alert_tasks.discard)
 
     async def set_honeypot(on: bool, reason: str, lang=None):
+        nonlocal extraction_order
         if state.honeypot == on:
             return
         state.honeypot = on
+        for task in list(extraction_tasks):
+            task.cancel()
         state.persona_epoch += 1
+        extraction_order = OrderedResults()
         state.persona_busy = False
         state.closing = False
         if on:
@@ -150,7 +158,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                     "delivery_latency_ms": state.delivery_latency_ms,
                                     "turn_plans": state.turn_plans,
                                     "evidence_sources": state.evidence_sources,
-                                    "evidence_alternatives": getattr(state.evidence, "alternatives", {})},
+                                    "evidence_alternatives": getattr(state.evidence, "alternatives", {}),
+                                    "evidence_history": getattr(state.evidence, "claim_history", {}),
+                                    "evidence_statuses": getattr(state.evidence, "statuses", {})},
                                    ensure_ascii=False, indent=1), encoding="utf-8")
 
     async def limit_honeypot(started):
@@ -181,6 +191,32 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         return await gnani.tts(line, voice=settings.honeypot_voice,
                                language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
 
+    async def extract_caller(line):
+        try:
+            return await honeypot.extract_claims(line)
+        except Exception as error:
+            log.warning("honeypot background extraction failed: %s", error)
+            return {}
+
+    def schedule_extraction(line, turn_key):
+        pending = extraction_by_turn.get(turn_key)
+        if pending is not None:
+            pending.cancel()  # supersede only this cumulative turn, not an earlier caller's evidence
+        order, epoch = extraction_order, state.persona_epoch
+        ticket = order.reserve()
+        task = asyncio.create_task(extract_caller(line))
+        extraction_tasks.add(task)
+        extraction_by_turn[turn_key] = task
+        def finished(done):
+            extraction_tasks.discard(done)
+            if extraction_by_turn.get(turn_key) is done:
+                extraction_by_turn.pop(turn_key, None)
+            found = {} if done.cancelled() else done.result()
+            for source, claims, turn in order.complete(ticket, (line, found, turn_key)):
+                if state.honeypot and state.persona_epoch == epoch:
+                    honeypot.merge(claims, state.evidence, source, state.evidence_sources, turn_id=turn)
+        task.add_done_callback(finished)
+
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
         failures = 0
@@ -195,7 +231,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
                 plan = honeypot.plan_turn(state.history, state.evidence)
                 line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
-                                            state.evidence_sources)
+                                            state.evidence_sources, extract_in_reply=False)
                 if not state.honeypot or state.persona_epoch != epoch:
                     return
                 if state.history[-1]["content"] != asked:
@@ -271,7 +307,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 if state.history and state.history[-1]["role"] == "user":
                     state.history[-1]["content"] = (state.history[-1]["content"] + " " + msg["text"])[-MAX_CALLER_TURN:]  # caller kept talking: one turn, latest words kept
                 else:
-                    state.history.append({"role": "user", "content": msg["text"]})
+                    state.history.append({"role": "user", "content": msg["text"][-MAX_CALLER_TURN:]})
+                schedule_extraction(state.history[-1]["content"], len(state.history)-1)
                 if not state.persona_busy:
                     state.persona_busy = True  # set before spawning: two transcripts in one tick start one loop
                     spawn(persona_loop(lang))
@@ -314,6 +351,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     except WebSocketDisconnect:
         pass
     finally:
+        for task in list(extraction_tasks):
+            task.cancel()
         for t in list(alert_tasks):
             t.cancel()
         if state.socket in (ws, None):  # an old socket closing must not end a reconnected call's honeypot

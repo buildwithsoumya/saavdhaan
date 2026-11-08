@@ -1,4 +1,4 @@
-from app.dialogue import memory_notes, plan_turn, repeats_reply
+from app.dialogue import memory_notes, persona_state, plan_turn, repeats_reply
 
 
 def turns(*lines):
@@ -66,3 +66,39 @@ def test_memory_retains_early_persona_details_after_context_window():
 
 def test_minor_rewording_does_not_evade_repetition_detection():
     assert repeats_reply("Please tell me your full name, sir?", turns("Hello", "Please tell me your full name sir."))
+
+
+def test_negated_threat_is_not_fear_but_a_later_assertion_is():
+    assert plan_turn(turns("You will not be arrested"), {}).action != "calm"
+    assert plan_turn(turns("No jail today, but we will arrest you tomorrow"), {}).action == "calm"
+    assert plan_turn(turns("आप गिरफ्तार नहीं होंगे"), {}).action != "calm"
+    assert plan_turn(turns("Don't worry, we will arrest you"), {}).action == "calm"
+
+
+def test_isolation_does_not_request_a_known_department():
+    assert plan_turn(turns("Don't tell anyone"), {"department": "CBI"}).target is None
+
+
+def test_structured_memory_tracks_resolved_obstacles_and_ignores_caller_suggestions():
+    history = turns("You lost glasses", "I can't find my glasses.", "You lost your phone", "I found my glasses.")
+    state = persona_state(history)
+    assert state["glasses"]["state"] == "found"
+    assert "phone" not in state
+    for statement in ("I haven't found my glasses.", "I don't have my glasses.", "I have been looking for my glasses."):
+        assert persona_state([{"role": "assistant", "content": statement}])["glasses"]["state"] == "missing"
+    assert plan_turn(turns("हम आपको गिरफ्तार करेंगे, डरना नहीं"), {}).action == "calm"
+
+
+def test_credential_request_wins_even_when_combined_with_secrecy_and_threat():
+    plan = plan_turn(turns("Don't tell anyone. Give your card number or face arrest."), {})
+    assert plan.action == "stall" and plan.target is None
+
+
+def test_payment_goal_survives_a_followup_without_money_keywords():
+    history = turns("Transfer money", "Please explain that.", "Listen carefully")
+    assert plan_turn(history, {}).target == "upi_or_account"
+
+
+def test_authority_goal_prefers_claimed_office_over_random_personal_name():
+    history = turns("I am a police inspector", "Please go on.", "Listen carefully")
+    assert plan_turn(history, {}).target == "department"

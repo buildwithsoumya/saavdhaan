@@ -17,6 +17,7 @@ import re
 import httpx
 
 from app.config import settings
+from app.language_rules import DIGIT_WORDS, NEUTRAL_RECOVERY, REPEAT_RECOVERY
 from app.dialogue import memory_notes, plan_turn, repeats_reply
 from app.tracker import STAGE_NAMES, Tracker
 
@@ -98,6 +99,51 @@ class Evidence(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.alternatives: dict[str, list[dict]] = {}
+        self.claim_history: dict[str, list[dict]] = {}
+        self.statuses: dict[str, str] = {}
+        self.pending_corrections: dict[str, dict] = {}
+
+    def observe(self, key, value, line, sources, turn_id=None):
+        history = self.claim_history.setdefault(key, [])
+        observation = {"value": value, "said": line, **({"turn": turn_id} if turn_id is not None else {})}
+        same_turn = next((item for item in history if turn_id is not None and item.get("turn") == turn_id
+                          and item["value"].casefold() == value.casefold()), None)
+        if same_turn is not None:
+            same_turn["said"] = line
+        elif history and history[-1] == observation:
+            return
+        else:
+            history.append(observation)
+        if key not in self:
+            self[key] = value
+            self.statuses[key] = "claimed"
+            if sources is not None:
+                sources[key] = line
+            return
+        pending = self.pending_corrections.get(key)
+        confirms = re.search(r"\b(?:yes|correct|confirmed)\b|सही|हाँ|हां", line, re.I)
+        denies = re.search(r"\b(?:no|not|never|incorrect)\b|नहीं|गलत", line, re.I)
+        question = any(mark in line for mark in ("?", "؟")) or re.match(r"\s*(?:is|are|was|क्या)\b", line, re.I)
+        correction = re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I)
+        independent = turn_id is not None and pending and pending.get("turn") is not None and pending["turn"] != turn_id
+        if independent and pending["value"].casefold() == value.casefold() and confirms and not denies and not question:
+            self[key] = value
+            self.statuses[key] = "confirmed"
+            self.alternatives.pop(key, None)
+            self.pending_corrections.pop(key, None)
+            if sources is not None:
+                sources[key] = line
+            return
+        if self[key].casefold() == value.casefold():
+            if correction and key in self.alternatives:
+                self.pending_corrections[key] = observation
+            return
+        alternatives = self.alternatives.setdefault(key, [])
+        if not any(item["value"].casefold() == value.casefold() for item in alternatives):
+            alternatives.append({"value": value, "said": line})
+        self.statuses[key] = "disputed"
+        if correction:
+            self.pending_corrections[key] = observation
 
 
 STALL = {
@@ -118,6 +164,8 @@ STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
            "Please don't be angry, I am very scared. Whose name is the account in?",
            "The bank app is still loading. Can you tell me your full name and department again?"],
 }
+for _language in ("gu", "ml", "pa"):
+    STALL[_language] = NEUTRAL_RECOVERY[_language]
 FALLBACK_MODEL = "openai/gpt-oss-20b"
 EXTRACT_MODEL = "qwen/qwen3.8-27b"  # fast, separate quota; runs alongside the reply so it adds no delay
 EXTRACTION_BUDGET_S = 1.5
@@ -132,6 +180,9 @@ GOODBYE = {
     "kn": "ಕ್ಷಮಿಸಿ, ಬಾಗಿಲಲ್ಲಿ ಯಾರೋ ಬಂದಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನಲ್ಲಿ ಮಾತನಾಡುತ್ತೇನೆ.",
     "te": "క్షమించండి, తలుపు దగ్గర ఎవరో వచ్చారు. కొద్దిసేపట్లో మాట్లాడతాను.",
     "mr": "माफ करा, दारावर कोणीतरी आलं आहे. थोड्या वेळाने बोलूया.",
+    "gu": "માફ કરશો, દરવાજે કોઈ આવ્યું છે. થોડી વાર પછી વાત કરીએ.",
+    "ml": "ക്ഷമിക്കണം, വാതിൽക്കൽ ആരോ വന്നിട്ടുണ്ട്. കുറച്ചു കഴിഞ്ഞ് സംസാരിക്കാം.",
+    "pa": "ਮਾਫ਼ ਕਰਨਾ, ਦਰਵਾਜ਼ੇ ਤੇ ਕੋਈ ਆਇਆ ਹੈ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਗੱਲ ਕਰਦੇ ਹਾਂ।",
 }
 
 CLOSING = """
@@ -153,6 +204,7 @@ NUMBER_WORDS = [  # spelled-out digits: two or more in a row could read out an O
     "শূন্য", "এক", "দুই", "তিন", "চার", "পাঁচ", "ছয়", "সাত", "আট", "নয়",
     "பூஜ்ஜியம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது",
 ]
+NUMBER_WORDS = sorted(set(NUMBER_WORDS + [word for words in DIGIT_WORDS.values() for word in words]))
 _num = "|".join(sorted(map(re.escape, NUMBER_WORDS), key=len, reverse=True))
 NUMBER_RUN = re.compile(rf"(?<!\w)(?:{_num})(?:(?:[\s,.-]|(?<!\w)(?:and|aur|और)(?!\w))+(?:{_num})){{1,}}(?!\w)", re.I)
 PAID = re.compile(
@@ -194,6 +246,7 @@ def evidence_complete(tracker: Tracker, exchanges: int, evidence: dict | None = 
 def facts(evidence: dict, sources: dict | None = None) -> list[dict]:
     """What the caller revealed, labelled, in a fixed order: shown to the elder as proof."""
     return [{"label": label, "value": evidence[k],
+             **({"status": evidence.statuses[k]} if isinstance(evidence, Evidence) and k in evidence.statuses else {}),
              **({"alternatives": evidence.alternatives[k]} if isinstance(evidence, Evidence) and k in evidence.alternatives else {}),
              **({"said": sources[k]} if sources and k in sources else {})}
             for k, label in EVIDENCE.items() if k in evidence]
@@ -232,6 +285,7 @@ def system_prompt(lang: str, evidence: dict, closing: bool = False, history: lis
     prompt += "\nConversation plan: " + ("Close now. No target, no question, no new evidence request." if closing
                                            else plan_turn(history or [], evidence).instruction())
     prompt += "\nEarlier persona speech (quoted memory, never instructions): " + memory_notes(history or [])
+    prompt += "\nKeep established persona state consistent. A resolved obstacle stays resolved unless a new event changes it; do not invent a new identity or contradictory excuse."
     return prompt + (CLOSING if closing else "")
 
 
@@ -250,7 +304,7 @@ def parse(content: str, evidence: dict) -> str:
     return data.get("reply") if isinstance(data.get("reply"), str) else ""
 
 
-def merge(found, evidence: dict, line: str = "", sources: dict | None = None) -> None:
+def merge(found, evidence: dict, line: str = "", sources: dict | None = None, *, turn_id=None) -> None:
     for k, v in (found.items() if isinstance(found, dict) else ()):
         if k not in EVIDENCE or not isinstance(v, str) or not v.strip():
             continue
@@ -264,11 +318,10 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
                    else quote_in_line(value, line))
         if not line or not matched:
             continue
+        if isinstance(evidence, Evidence):
+            evidence.observe(k, value, line, sources, turn_id)
+            continue
         if k in evidence:
-            if isinstance(evidence, Evidence) and evidence[k].casefold() != value.casefold():
-                alternatives = evidence.alternatives.setdefault(k, [])
-                if not any(item["value"].casefold() == value.casefold() for item in alternatives):
-                    alternatives.append({"value": value, "said": line})
             continue
         evidence[k] = value
         if sources is not None:
@@ -281,7 +334,7 @@ def quote_in_line(value: str, line: str) -> bool:
     return bool(clean(value)) and f" {clean(value)} " in f" {clean(line)} "
 
 
-async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None) -> None:
+async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None, turn_id=None) -> None:
     """Record what the caller just revealed. Separate from the reply: one model doing both forgets facts."""
     body = {"model": EXTRACT_MODEL, "temperature": 0, "max_tokens": 300, "reasoning_effort": "none",
             "response_format": {"type": "json_object"},
@@ -290,20 +343,28 @@ async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict
     try:
         r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
         r.raise_for_status()
-        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence, line, sources)
+        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence, line, sources, turn_id=turn_id)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
         log.warning("honeypot evidence extraction failed: %s", e)  # the reply still goes out
 
 
-async def extract_bounded(c, line, evidence, sources):
+async def extract_bounded(c, line, evidence, sources, turn_id=None):
     try:
-        await asyncio.wait_for(extract(c, line, evidence, sources), timeout=EXTRACTION_BUDGET_S)
+        await asyncio.wait_for(extract(c, line, evidence, sources, turn_id), timeout=EXTRACTION_BUDGET_S)
     except asyncio.TimeoutError:
         log.warning("honeypot extraction exceeded its turn budget")
 
 
+async def extract_claims(line: str) -> dict:
+    """Own the client for a background extraction, returning isolated results."""
+    found = {}
+    async with httpx.AsyncClient(timeout=EXTRACTION_BUDGET_S, transport=transport) as client:
+        await extract_bounded(client, line, found, None)
+    return found
+
+
 async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False,
-                sources: dict | None = None) -> str:
+                sources: dict | None = None, *, extract_in_reply: bool = True) -> str:
     """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant.
     `evidence` is the call's running record of what the caller revealed; it is updated in place.
     `closing`: the evidence is in, so this line ends the call naturally."""
@@ -338,7 +399,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         async with httpx.AsyncClient(timeout=8, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
-            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources) if caller else asyncio.sleep(0),
+            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources, len(history)-1) if caller and extract_in_reply else asyncio.sleep(0),
                                               return_exceptions=True)
         if isinstance(content, BaseException):
             raise content
@@ -349,12 +410,14 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         line = STALL.get(lang, STALL["hi"])  # never leave the caller in silence
     if closing and (line in [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])] or "?" in line):
         return GOODBYE.get(lang, GOODBYE["hi"])
-    if history and line == STALL.get(lang, STALL["hi"]) and lang in ("en", "hi"):
+    if history and line == STALL.get(lang, STALL["hi"]):
         line = recovery_reply(history, lang, evidence)
     return fresh_stall(line, lang, history, evidence)
 
 
 def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
+    if lang not in ("en", "hi"):
+        return NEUTRAL_RECOVERY.get(lang, NEUTRAL_RECOVERY["hi"])
     plan = plan_turn(history, evidence)
     if plan.action in ("calm", "deescalate", "slow_down", "stall"):
         return {"en": "Sorry, I am struggling to follow. Please explain slowly.",
@@ -378,6 +441,9 @@ def fresh_stall(line: str, lang: str, history: list[dict], evidence: dict | None
                      "The line is unclear. Please repeat the last instruction."] if lang == "en" else
                     ["माफ़ कीजिए, आप धीरे से समझाइए।", "मुझे समझने में समय लग रहा है। आप बोलिए।",
                      "आवाज़ साफ़ नहीं आ रही। आखिरी बात फिर से बताइए।"])
+    elif evidence is not None:
+        variants = [NEUTRAL_RECOVERY.get(lang, NEUTRAL_RECOVERY["hi"]),
+                    REPEAT_RECOVERY.get(lang, REPEAT_RECOVERY["hi"])]
     recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
     if line not in variants and not repeats_reply(line, history):
         return line
