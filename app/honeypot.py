@@ -18,7 +18,7 @@ import httpx
 
 from app.config import settings
 from app.language_rules import DIGIT_WORDS, NEUTRAL_RECOVERY, REPEAT_RECOVERY
-from app.dialogue import memory_notes, plan_turn, repeats_reply
+from app.dialogue import WORD_END, memory_notes, plan_turn, repeats_reply
 from app.tracker import STAGE_NAMES, Tracker
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -123,7 +123,7 @@ class Evidence(dict):
         pending = self.pending_corrections.get(key)
         confirms = re.search(r"\b(?:yes|correct|confirmed)\b|सही|हाँ|हां", line, re.I)
         denies = re.search(r"\b(?:no|not|never|incorrect)\b|नहीं|गलत", line, re.I)
-        question = any(mark in line for mark in ("?", "؟")) or re.match(r"\s*(?:is|are|was|क्या)\b", line, re.I)
+        question = any(mark in line for mark in ("?", "؟")) or re.match(r"\s*(?:is|are|was|क्या)" + WORD_END, line, re.I)
         correction = re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I)
         independent = turn_id is not None and pending and pending.get("turn") is not None and pending["turn"] != turn_id
         if independent and pending["value"].casefold() == value.casefold() and confirms and not denies and not question:
