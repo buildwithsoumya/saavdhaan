@@ -261,14 +261,14 @@ curl.exe -L -o data\indica\Text_samples.tar.gz "https://huggingface.co/datasets/
 .venv\Scripts\python -m bench.indica                 # or: --langs hindi english
 ```
 
-| | legit calls flagged L2+ (false alarm) | scam calls flagged L2+ |
-|---|---:|---:|
-| Hindi | 0 / 11,978 | 6 / 6,996 |
-| English | 0 / 11,978 | 2 / 6,996 |
-| Bengali | 0 / 11,978 | 14 / 6,996 |
-| Telugu | 2 / 11,978 | 86 / 6,996 |
+| | legit: Caution shown (L1+) | legit: warning (L2+) | scam: L1+ | scam: L2+ |
+|---|---:|---:|---:|---:|
+| Hindi | 10 / 11,978 (0.1%) | 0 / 11,978 | 126 / 6,996 | 6 / 6,996 |
+| English | 2 / 11,978 (0.0%) | 0 / 11,978 | 224 / 6,996 | 2 / 6,996 |
+| Bengali | 16 / 11,978 (0.1%) | 0 / 11,978 | 62 / 6,996 | 14 / 6,996 |
+| Telugu | 58 / 11,978 (0.5%) | 2 / 11,978 | 1,326 / 6,996 | 86 / 6,996 |
 
-INDICA is the Chinese TeleAntiFraud set machine-translated into Indic languages and read by TTS, so its scams are shopping, loan and app-download pitches. They are outside Saavdhaan's impersonation kill chain, which is why so few are flagged. The useful number is the false-alarm rate on about 48,000 everyday conversations: 2 in these four languages. Assamese, Gujarati, Kannada, Malayalam, Odia and Tamil also show 0 / 11,978, but that is not evidence. Saavdhaan has no lexicon for the first five, so it can flag nothing there. Tamil, like Kannada, flagged none of the 6,996 scams either; INDICA cannot say whether its lexicon works. The dataset card states no licence, so it is used here for private evaluation only and nothing from it is committed.
+INDICA is the Chinese TeleAntiFraud set machine-translated into Indic languages and read by TTS, so its scams are shopping, loan and app-download pitches. They are outside Saavdhaan's impersonation kill chain, which is why so few are flagged. The useful number is the false-alarm rate on about 48,000 everyday conversations: the spoken warning (L2+) fired twice and the on-screen Caution (L1) appeared on 0.0–0.5% of them, in these four languages. Assamese, Gujarati, Kannada, Malayalam, Odia and Tamil also show 0 / 11,978, but that is not evidence. Saavdhaan has no lexicon for the first five, so it can flag nothing there. Tamil, like Kannada, flagged none of the 6,996 scams either; INDICA cannot say whether its lexicon works. The dataset card states no licence, so it is used here for private evaluation only and nothing from it is committed.
 ## Gnani APIs used
 
 | API | Used for |

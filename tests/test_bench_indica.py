@@ -19,6 +19,6 @@ def test_counts_flagged_conversations_per_language_and_label(tmp_path):
             info.size = len(data)
             t.addfile(info, io.BytesIO(data))
     out = indica.evaluate(archive)
-    assert out["hindi"]["scam"] == [1, 1] and out["hindi"]["legit"] == [1, 0]
-    assert out["english"]["legit"] == [1, 0]
+    assert out["hindi"]["scam"] == [1, 1, 1] and out["hindi"]["legit"] == [1, 0, 0]
+    assert out["english"]["legit"] == [1, 0, 0]
     assert set(indica.evaluate(archive, {"english"})) == {"english"}

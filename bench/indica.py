@@ -30,8 +30,8 @@ def level(text: str) -> int:
 
 
 def evaluate(archive: Path, langs: set[str] | None = None) -> dict:
-    """{language: {label: [conversations, flagged at L2+]}} from Text_samples/Text_<lang>/<label>/*.txt."""
-    out = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0]))
+    """{language: {label: [conversations, L1+ (caution shown), L2+ (warning)]}} from Text_samples/Text_<lang>/<label>/*.txt."""
+    out = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0, 0]))
     with tarfile.open(archive) as t:
         for m in t:
             parts = m.name.split("/")
@@ -41,8 +41,10 @@ def evaluate(archive: Path, langs: set[str] | None = None) -> dict:
             if langs and lang not in langs:
                 continue
             row = out[lang][label]
+            lvl = level(t.extractfile(m).read().decode("utf-8", "replace"))
             row[0] += 1
-            row[1] += level(t.extractfile(m).read().decode("utf-8", "replace")) >= 2
+            row[1] += lvl >= 1
+            row[2] += lvl >= 2
     return out
 
 
@@ -54,13 +56,14 @@ def main():
     if not a.archive.exists():
         sys.exit(f"{a.archive} not found; download it first (see python -m bench.indica --help)")
     sys.stdout.reconfigure(encoding="utf-8")
-    print(f"{'language':10} {'legit flagged (false alarm)':>28} {'scam flagged':>22}")
+    # the live app shows Caution at L1 and speaks its warning from L2; report both
+    print(f"{'language':10} {'legit L1+':>16} {'legit L2+':>16} {'scam L1+':>16} {'scam L2+':>16}")
     for lang, rows in sorted(evaluate(a.archive, set(a.langs or [])).items()):
         cells = []
         for label in ("legit", "scam"):
-            n, hit = rows.get(label, [0, 0])
-            cells.append(f"{hit}/{n} ({100 * hit / n:.1f}%)" if n else "-")
-        print(f"{lang:10} {cells[0]:>28} {cells[1]:>22}")
+            n, l1, l2 = rows.get(label, [0, 0, 0])
+            cells += [f"{hit}/{n} ({100 * hit / n:.1f}%)" if n else "-" for hit in (l1, l2)]
+        print(f"{lang:10} " + " ".join(f"{c:>16}" for c in cells))
 
 
 if __name__ == "__main__":
