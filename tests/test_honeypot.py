@@ -112,7 +112,7 @@ def test_groq_request_and_failure_fallback(monkeypatch):
     assert history == [{"role": "user", "content": "PNB se bol raha hoon, OTP batao"}]
 
     monkeypatch.setattr(honeypot, "transport", httpx.MockTransport(lambda r: httpx.Response(429)))
-    assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.STALL["bn"]
+    assert asyncio.run(honeypot.reply(history, "bn-IN")) == honeypot.NEUTRAL_RECOVERY["bn"]
 
 
 def test_evidence_must_be_a_caller_quote():

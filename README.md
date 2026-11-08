@@ -214,6 +214,21 @@ Cached audio, voice embeddings, opted-in recordings, reports and honeypot logs l
 
 ## SaavdhaanBench
 
+Honeypot claim history records disputed details and explicit corrections. A correction becomes the current
+claim only after a separate affirmative confirmation; it still means **caller confirmed**, not independently
+verified. All observations remain in the saved log. Native credential and digit-word rules cover the ten
+configured languages, with native-speaker review still required for dialect and transliteration coverage.
+
+Live call extraction runs in its own session-owned task and does not hold back speech generation. It is
+cancelled when superseded or when the session stops. Persona memory keeps explicit obstacle states so a
+resolved excuse is not silently reused.
+
+For a recorded audio service-loop check, create a JSON manifest with `language` and `turns`, each containing
+an `audio` WAV path relative to the manifest and optional `reference` transcript. Run
+`python -m bench.voice_loop path/to/manifest.json` to preview; add `--run` to use paid STT, Groq and TTS.
+Outputs under `bench/out/voice-loop/` include reply WAVs, WER and stage timings. This is a service replay;
+it does not measure speakerphone echo, actual caller retention, or hardware interruption behavior.
+
 Run `python -m bench.dialogue --strict` to check bilingual conversation planning against expected decisions
 and a fixed checklist baseline. CI publishes the report. These cases measure planning decisions, not
 real-world engagement or voice quality.
