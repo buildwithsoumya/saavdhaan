@@ -25,6 +25,8 @@ THREAT = re.compile(r"\barrest|\bjail\b|\bpolice\b.*\b(?:coming|door)\b|\bhurt\b
 SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को मत|अकेले|kisi ko mat", re.I)
 DEVICE = re.compile(r"\binstall|\bdownload|\banydesk\b|\bteamviewer\b|\bopen\b.*\b(?:apps?|link)\b|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
 PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओटीपी|पासवर्ड|आधार|सीवीवी", re.I)
+# \b fails after a Devanagari vowel sign (क्या, क्यों: the matra is not a word character), so end words on a delimiter
+WORD_END = r"(?=[\s?,.!।]|$)"
 URGENCY = re.compile(r"\bhurry\b|\bquick(?:ly)?\b|\bimmediately\b|\bright now\b|\bjaldi\b|\babhi\b|जल्दी|अभी", re.I)
 NEGATED_THREAT = re.compile(
     r"\b(?:not|never|won't)(?:\s+(?:be|being|get|getting|go|going|sent|to|in|face))*\s+(?:arrest\w*|jail|hurt|kill\w*)\b"
@@ -119,7 +121,7 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if soft and caller.strip().casefold().rstrip(".!?") in ("hello", "yes", "okay", "ok", "hmm", "haan", "जी", "हाँ", "हां"):
         return TurnPlan("listen", None,
                         "This is only a short acknowledgement. Briefly acknowledge it and invite the caller to continue; infer no new facts.")
-    if soft and ("?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I)):
+    if soft and ("?" in caller or re.search(r"^\s*(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)" + WORD_END, caller, re.I)):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
     recent_caller = " ".join(m.get("content", "") for m in history if m.get("role") == "user")[-2500:]
