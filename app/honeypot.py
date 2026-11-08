@@ -118,7 +118,9 @@ class Evidence(dict):
         pending = self.pending_corrections.get(key)
         confirms = re.search(r"\b(?:yes|correct|confirmed)\b|सही|हाँ|हां", line, re.I)
         denies = re.search(r"\b(?:no|not|never|incorrect)\b|नहीं|गलत", line, re.I)
-        if pending and pending["value"].casefold() == value.casefold() and line != pending["said"] and confirms and not denies:
+        question = any(mark in line for mark in ("?", "؟")) or re.match(r"\s*(?:is|are|was|क्या)\b", line, re.I)
+        correction = re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I)
+        if pending and pending["value"].casefold() == value.casefold() and line != pending["said"] and confirms and not denies and not question:
             self[key] = value
             self.statuses[key] = "confirmed"
             self.alternatives.pop(key, None)
@@ -127,12 +129,14 @@ class Evidence(dict):
                 sources[key] = line
             return
         if self[key].casefold() == value.casefold():
+            if correction and key in self.alternatives:
+                self.pending_corrections[key] = observation
             return
         alternatives = self.alternatives.setdefault(key, [])
         if not any(item["value"].casefold() == value.casefold() for item in alternatives):
             alternatives.append(observation)
         self.statuses[key] = "disputed"
-        if re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I):
+        if correction:
             self.pending_corrections[key] = observation
 
 

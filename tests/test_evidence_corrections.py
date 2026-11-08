@@ -29,3 +29,13 @@ def test_changed_claim_without_explicit_correction_is_not_automatically_promoted
     merge({"bank": "SBI"}, evidence, "Use SBI")
     merge({"bank": "SBI"}, evidence, "Yes SBI is correct")
     assert evidence["bank"] == "PNB"
+
+
+def test_question_is_not_confirmation_and_explicit_reversion_can_be_confirmed():
+    evidence = Evidence({"bank": "PNB"})
+    merge({"bank": "SBI"}, evidence, "Correction: SBI")
+    merge({"bank": "SBI"}, evidence, "Is SBI correct?")
+    assert evidence["bank"] == "PNB" and evidence.statuses["bank"] == "disputed"
+    merge({"bank": "PNB"}, evidence, "Actually use PNB instead")
+    merge({"bank": "PNB"}, evidence, "Yes PNB is correct")
+    assert evidence.statuses["bank"] == "confirmed" and not evidence.alternatives
