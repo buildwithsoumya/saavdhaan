@@ -9,6 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
+from dataclasses import dataclass
 
 from app import gnani, honeypot
 from app.audio import to_pcm
@@ -17,10 +18,18 @@ from bench.run import transcribe, wer
 from bench.honeypot import score
 
 
-async def recognize(audio: bytes, language: str) -> str:
+@dataclass(frozen=True)
+class Recognition:
+    text: str
+    input_duration_ms: int | None = None
+    collection_grace_ms: int | None = None
+
+
+async def recognize(audio: bytes, language: str) -> Recognition:
     pcm = await asyncio.to_thread(to_pcm, audio)
     segments = await transcribe(pcm, 16000, "v3+kt+follow", language, 1.0)
-    return " ".join(text for _, text in segments)
+    # bench.run.transcribe paces the input at real time and then waits four seconds.
+    return Recognition(" ".join(text for _, text in segments), round(len(pcm) / 32), 4000)
 
 
 async def synthesize(text: str, language: str) -> bytes:
@@ -32,7 +41,9 @@ async def replay(turns, language, output: Path, recognizer=recognize, responder=
     output.mkdir(parents=True, exist_ok=True)
     for index, turn in enumerate(turns[:honeypot.MAX_EXCHANGES]):
         started = time.perf_counter()
-        text = await recognizer(turn["audio"], language)
+        recognized = await recognizer(turn["audio"], language)
+        recognition = recognized if isinstance(recognized, Recognition) else Recognition(recognized)
+        text = recognition.text
         heard = time.perf_counter()
         if not text.strip():
             measurements.append({"turn": index, "empty_transcript": True})
@@ -45,9 +56,12 @@ async def replay(turns, language, output: Path, recognizer=recognize, responder=
         path = output / f"reply-{index}.wav"
         path.write_bytes(audio)
         history.append({"role": "assistant", "content": spoken})
-        row = {"turn": index, "stt_ms": round((heard-started)*1000),
+        row = {"turn": index, "stt_replay_ms": round((heard-started)*1000),
+               "input_duration_ms": recognition.input_duration_ms,
+               "collection_grace_ms": recognition.collection_grace_ms,
                "generation_ms": round((generated-heard)*1000), "tts_ms": round((finished-generated)*1000),
-               "service_loop_ms": round((finished-started)*1000), "reply_audio": str(path)}
+               "reply_pipeline_ms": round((finished-heard)*1000),
+               "replay_loop_ms": round((finished-started)*1000), "reply_audio": str(path)}
         if "reference" in turn:
             row["wer"] = wer(turn["reference"], text)
         measurements.append(row)

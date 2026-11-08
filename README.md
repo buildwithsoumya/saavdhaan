@@ -228,6 +228,8 @@ an `audio` WAV path relative to the manifest and optional `reference` transcript
 `python -m bench.voice_loop path/to/manifest.json` to preview; add `--run` to use paid STT, Groq and TTS.
 Outputs under `bench/out/voice-loop/` include reply WAVs, WER and stage timings. This is a service replay;
 it does not measure speakerphone echo, actual caller retention, or hardware interruption behavior.
+`stt_replay_ms` includes real-time audio input and the collection grace period, which are reported separately;
+`reply_pipeline_ms` starts only after transcription returns. Neither is an acoustic end-of-speech measurement.
 
 Run `python -m bench.dialogue --strict` to check bilingual conversation planning against expected decisions
 and a fixed checklist baseline. CI publishes the report. These cases measure planning decisions, not
