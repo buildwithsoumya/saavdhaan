@@ -84,3 +84,18 @@ def test_structured_memory_tracks_resolved_obstacles_and_ignores_caller_suggesti
     state = persona_state(history)
     assert state["glasses"]["state"] == "found"
     assert "phone" not in state
+
+
+def test_credential_request_wins_even_when_combined_with_secrecy_and_threat():
+    plan = plan_turn(turns("Don't tell anyone. Give your card number or face arrest."), {})
+    assert plan.action == "stall" and plan.target is None
+
+
+def test_payment_goal_survives_a_followup_without_money_keywords():
+    history = turns("Transfer money", "Please explain that.", "Listen carefully")
+    assert plan_turn(history, {}).target == "upi_or_account"
+
+
+def test_authority_goal_prefers_claimed_office_over_random_personal_name():
+    history = turns("I am a police inspector", "Please go on.", "Listen carefully")
+    assert plan_turn(history, {}).target == "department"

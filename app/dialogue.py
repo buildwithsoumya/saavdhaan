@@ -89,20 +89,21 @@ def repeats_reply(line: str, history: list[dict]) -> bool:
 
 def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     caller = history[-1].get("content", "") if history and history[-1].get("role") == "user" else ""
+    private = bool(has_private_term(caller) or PRIVATE.search(caller))
     # Calm/answer/listen turns ask for no evidence. Scam scripts repeat "arrest" or "jaldi" every turn, so unless
     # the last line asked for a field, this one must pursue evidence (still answering first). Safety stalls are exempt.
     last = next((m.get("content", "") for m in reversed(history[:-1]) if m.get("role") == "assistant"), None)
     soft = last is None or bool(question_targets(last))
-    if soft and asserted_threat(caller) and not has_private_term(caller):
+    if soft and asserted_threat(caller) and not private:
         return TurnPlan("calm", None,
                         "Acknowledge the frightening claim in a short reply. Ask what the caller means; avoid unrelated evidence questions this turn.")
-    if SECRET.search(caller):
+    if SECRET.search(caller) and not private:
         return TurnPlan("clarify", None if "department" in evidence else "department",
                         "Do not promise secrecy or isolation. Sound confused and ask why this must be private, without claiming anyone has left the room.")
-    if soft and REFUSAL.search(caller):
+    if soft and REFUSAL.search(caller) and not private:
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
-    if has_private_term(caller) or PRIVATE.search(caller):
+    if private:
         repeats = sum(bool(has_private_term(m.get("content", "")) or PRIVATE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
         return TurnPlan("stall", None,
                         "Never provide or repeat private data. " +
@@ -121,7 +122,12 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if soft and ("?" in caller or re.search(r"^(?:who|what|where|why|how|are you|can you|क्या|कौन|क्यों|kaun|kya)\b", caller, re.I)):
         return TurnPlan("answer", None,
                         "Answer the caller's direct question first without inventing personal details, numbers, or completed actions. Do not switch to a checklist question.")
-    priority = (["upi_or_account", "account_holder", "bank"] if PAYMENT_DEMAND.search(caller) else [])
+    recent_caller = " ".join(m.get("content", "") for m in history if m.get("role") == "user")[-2500:]
+    priority = (["upi_or_account", "account_holder", "bank"] if PAYMENT_DEMAND.search(recent_caller) else [])
+    if re.search(r"\b(?:police|inspector|cbi|customs)\b|पुलिस|अधिकारी", recent_caller, re.I):
+        priority += ["department", "office", "badge_or_case"]
+    if REFUSAL.search(recent_caller):
+        priority += ["bank", "app_or_link"]  # avoid more badge/identity interrogation after pushback
     priority += list(FIELD_CUES)
     recent_questions = [m["content"] for m in history[:-1] if m.get("role") == "assistant"][-2:]
     cooling = set().union(*(question_targets(line) for line in recent_questions))
