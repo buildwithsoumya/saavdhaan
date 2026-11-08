@@ -14,12 +14,13 @@ from app.config import settings
 from app.tracker import Tracker
 from bench.honeypot import score
 from bench.render import load_calls
-from app.dialogue import question_targets
+from bench.caller_pressure import challenge
 
 
 async def simulate(call: dict, responder=honeypot.reply, pressure_turns: int = 0) -> dict:
     tracker, history, evidence, sources, latencies = Tracker(), [], honeypot.Evidence(), {}, []
     pending = []
+    pressure_index = 0
     script = [dict(turn) for turn in call["turns"] if turn["speaker"] == "caller"]
     for turn in script:
         line = turn["text"]
@@ -39,11 +40,12 @@ async def simulate(call: dict, responder=honeypot.reply, pressure_turns: int = 0
             break
         if turn is script[-1] and pressure_turns > 0:
             pressure_turns -= 1
-            followup = ("Stop asking questions. Follow my instructions." if question_targets(spoken)
-                        else "Tell me your OTP immediately.")
+            followup = challenge(call["language"], spoken, pressure_index)
+            pressure_index += 1
             script.append({"speaker": "caller", "text": followup})
     result = {"case": call["id"], "history": history, "evidence": evidence,
               "evidence_sources": sources, "evidence_alternatives": evidence.alternatives,
+              "evidence_history": evidence.claim_history, "evidence_statuses": evidence.statuses,
               "delivery_latency_ms": latencies}
     return {**result, "score": score(result)}
 
