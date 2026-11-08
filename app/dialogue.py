@@ -6,6 +6,7 @@ import re
 import json
 from difflib import SequenceMatcher
 from dataclasses import dataclass
+from app.language_rules import has_private_term
 
 FIELD_CUES = {
     "name": r"\bname\b|नाम|naam",
@@ -72,8 +73,8 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     if soft and REFUSAL.search(caller):
         return TurnPlan("deescalate", None,
                         "The caller refused a detail. Acknowledge briefly and ask them to explain their next instruction; do not interrogate them.")
-    if PRIVATE.search(caller):
-        repeats = sum(bool(PRIVATE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
+    if has_private_term(caller) or PRIVATE.search(caller):
+        repeats = sum(bool(has_private_term(m.get("content", "")) or PRIVATE.search(m.get("content", ""))) for m in history[:-1] if m.get("role") == "user")
         return TurnPlan("stall", None,
                         "Never provide or repeat private data. " +
                         ("Politely ask which office is calling." if not repeats else

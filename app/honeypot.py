@@ -17,6 +17,7 @@ import re
 import httpx
 
 from app.config import settings
+from app.language_rules import DIGIT_WORDS
 from app.dialogue import memory_notes, plan_turn, repeats_reply
 from app.tracker import STAGE_NAMES, Tracker
 
@@ -153,6 +154,7 @@ NUMBER_WORDS = [  # spelled-out digits: two or more in a row could read out an O
     "শূন্য", "এক", "দুই", "তিন", "চার", "পাঁচ", "ছয়", "সাত", "আট", "নয়",
     "பூஜ்ஜியம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது",
 ]
+NUMBER_WORDS = sorted(set(NUMBER_WORDS + [word for words in DIGIT_WORDS.values() for word in words]))
 _num = "|".join(sorted(map(re.escape, NUMBER_WORDS), key=len, reverse=True))
 NUMBER_RUN = re.compile(rf"(?<!\w)(?:{_num})(?:(?:[\s,.-]|(?<!\w)(?:and|aur|और)(?!\w))+(?:{_num})){{1,}}(?!\w)", re.I)
 PAID = re.compile(
