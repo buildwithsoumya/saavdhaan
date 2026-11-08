@@ -7,6 +7,7 @@ import json
 from difflib import SequenceMatcher
 from dataclasses import dataclass
 from app.language_rules import has_private_term
+from app.language_rules import normalize
 
 FIELD_CUES = {
     "name": r"\bname\b|नाम|naam",
@@ -25,6 +26,14 @@ SECRET = re.compile(r"don.t tell|stay alone|keep.*secret|किसी को म
 DEVICE = re.compile(r"\binstall|\bdownload|\banydesk\b|\bteamviewer\b|\bopen\b.*\b(?:apps?|link)\b|इंस्टॉल|डाउनलोड|ऐप खोल", re.I)
 PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओटीपी|पासवर्ड|आधार|सीवीवी", re.I)
 URGENCY = re.compile(r"\bhurry\b|\bquick(?:ly)?\b|\bimmediately\b|\bright now\b|\bjaldi\b|\babhi\b|जल्दी|अभी", re.I)
+NEGATED_THREAT = re.compile(
+    r"\b(?:not|never|won't)(?:\s+(?:be|being|get|getting|go|going|sent|to|in|face))*\s+(?:arrest\w*|jail|hurt|kill\w*)\b"
+    r"|\bno\s+(?:arrest\w*|jail)\b|(?:गिरफ्तार|जेल)(?:\s+\S+){0,2}\s+नहीं", re.I)
+
+
+def asserted_threat(text: str) -> bool:
+    # Remove only the negated threat phrase. A separate "but we will arrest you" still counts.
+    return bool(THREAT.search(NEGATED_THREAT.sub(" ", normalize(text))))
 
 
 @dataclass(frozen=True)
@@ -64,11 +73,11 @@ def plan_turn(history: list[dict], evidence: dict) -> TurnPlan:
     # the last line asked for a field, this one must pursue evidence (still answering first). Safety stalls are exempt.
     last = next((m.get("content", "") for m in reversed(history[:-1]) if m.get("role") == "assistant"), None)
     soft = last is None or bool(question_targets(last))
-    if soft and THREAT.search(caller):
+    if soft and asserted_threat(caller) and not has_private_term(caller):
         return TurnPlan("calm", None,
                         "Acknowledge the frightening claim in a short reply. Ask what the caller means; avoid unrelated evidence questions this turn.")
     if SECRET.search(caller):
-        return TurnPlan("clarify", "department",
+        return TurnPlan("clarify", None if "department" in evidence else "department",
                         "Do not promise secrecy or isolation. Sound confused and ask why this must be private, without claiming anyone has left the room.")
     if soft and REFUSAL.search(caller):
         return TurnPlan("deescalate", None,

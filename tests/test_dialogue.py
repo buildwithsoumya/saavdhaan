@@ -66,3 +66,14 @@ def test_memory_retains_early_persona_details_after_context_window():
 
 def test_minor_rewording_does_not_evade_repetition_detection():
     assert repeats_reply("Please tell me your full name, sir?", turns("Hello", "Please tell me your full name sir."))
+
+
+def test_negated_threat_is_not_fear_but_a_later_assertion_is():
+    assert plan_turn(turns("You will not be arrested"), {}).action != "calm"
+    assert plan_turn(turns("No jail today, but we will arrest you tomorrow"), {}).action == "calm"
+    assert plan_turn(turns("आप गिरफ्तार नहीं होंगे"), {}).action != "calm"
+    assert plan_turn(turns("Don't worry, we will arrest you"), {}).action == "calm"
+
+
+def test_isolation_does_not_request_a_known_department():
+    assert plan_turn(turns("Don't tell anyone"), {"department": "CBI"}).target is None
