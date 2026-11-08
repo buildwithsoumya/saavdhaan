@@ -103,6 +103,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     state.socket = ws
     send_lock = asyncio.Lock()
     alert_tasks = set()
+    extraction_tasks = set()
 
     async def send(payload):
         """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
@@ -124,6 +125,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if state.honeypot == on:
             return
         state.honeypot = on
+        for task in list(extraction_tasks):
+            task.cancel()
         state.persona_epoch += 1
         state.persona_busy = False
         state.closing = False
@@ -183,6 +186,22 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         return await gnani.tts(line, voice=settings.honeypot_voice,
                                language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
 
+    async def extract_caller(line, epoch):
+        try:
+            found = await honeypot.extract_claims(line)
+        except Exception as error:
+            log.warning("honeypot background extraction failed: %s", error)
+            return
+        if state.honeypot and state.persona_epoch == epoch:
+            honeypot.merge(found, state.evidence, line, state.evidence_sources)
+
+    def schedule_extraction(line):
+        for pending in list(extraction_tasks):
+            pending.cancel()  # latest cumulative caller turn supersedes older unfinished work
+        task = asyncio.create_task(extract_caller(line, state.persona_epoch))
+        extraction_tasks.add(task)
+        task.add_done_callback(extraction_tasks.discard)
+
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
         failures = 0
@@ -197,7 +216,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
                 plan = honeypot.plan_turn(state.history, state.evidence)
                 line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
-                                            state.evidence_sources)
+                                            state.evidence_sources, extract_in_reply=False)
                 if not state.honeypot or state.persona_epoch != epoch:
                     return
                 if state.history[-1]["content"] != asked:
@@ -273,7 +292,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 if state.history and state.history[-1]["role"] == "user":
                     state.history[-1]["content"] = (state.history[-1]["content"] + " " + msg["text"])[-MAX_CALLER_TURN:]  # caller kept talking: one turn, latest words kept
                 else:
-                    state.history.append({"role": "user", "content": msg["text"]})
+                    state.history.append({"role": "user", "content": msg["text"][-MAX_CALLER_TURN:]})
+                schedule_extraction(state.history[-1]["content"])
                 if not state.persona_busy:
                     state.persona_busy = True  # set before spawning: two transcripts in one tick start one loop
                     spawn(persona_loop(lang))
@@ -316,6 +336,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     except WebSocketDisconnect:
         pass
     finally:
+        for task in list(extraction_tasks):
+            task.cancel()
         for t in list(alert_tasks):
             t.cancel()
         if state.socket in (ws, None):  # an old socket closing must not end a reconnected call's honeypot

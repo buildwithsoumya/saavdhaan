@@ -340,8 +340,16 @@ async def extract_bounded(c, line, evidence, sources):
         log.warning("honeypot extraction exceeded its turn budget")
 
 
+async def extract_claims(line: str) -> dict:
+    """Own the client for a background extraction, returning isolated results."""
+    found = {}
+    async with httpx.AsyncClient(timeout=EXTRACTION_BUDGET_S, transport=transport) as client:
+        await extract_bounded(client, line, found, None)
+    return found
+
+
 async def reply(history: list[dict], code: str | None, evidence: dict | None = None, closing: bool = False,
-                sources: dict | None = None) -> str:
+                sources: dict | None = None, *, extract_in_reply: bool = True) -> str:
     """Next persona line from Groq. `history` is chat messages: caller = user, persona = assistant.
     `evidence` is the call's running record of what the caller revealed; it is updated in place.
     `closing`: the evidence is in, so this line ends the call naturally."""
@@ -376,7 +384,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         async with httpx.AsyncClient(timeout=8, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
-            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources) if caller else asyncio.sleep(0),
+            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources) if caller and extract_in_reply else asyncio.sleep(0),
                                               return_exceptions=True)
         if isinstance(content, BaseException):
             raise content
