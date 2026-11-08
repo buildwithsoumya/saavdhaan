@@ -254,6 +254,21 @@ Every run prints an estimated credit cost and asks before spending. Results go t
 
 L2 is the first level with false alarms under 5%. Half of the scam scripts only reach a third stage with the money ask itself, and that gap is what the live system has to close. The lexicon and the scripts were written together, so treat this as an upper bound. Live STT numbers depend on an approved benchmark run.
 
+**External check: [INDICA](https://huggingface.co/datasets/vikrant-vikram/INDICA) text, 10 languages.** Download only the 77 MB text archive (the 337 GB of audio is not needed), then run the tracker over every conversation:
+
+```powershell
+curl.exe -L -o data\indica\Text_samples.tar.gz "https://huggingface.co/datasets/vikrant-vikram/INDICA/resolve/main/Text_samples.tar.gz"
+.venv\Scripts\python -m bench.indica                 # or: --langs hindi english
+```
+
+| | legit: Caution shown (L1+) | legit: warning (L2+) | scam: L1+ | scam: L2+ |
+|---|---:|---:|---:|---:|
+| Hindi | 10 / 11,978 (0.1%) | 0 / 11,978 | 126 / 6,996 | 6 / 6,996 |
+| English | 2 / 11,978 (0.0%) | 0 / 11,978 | 224 / 6,996 | 2 / 6,996 |
+| Bengali | 16 / 11,978 (0.1%) | 0 / 11,978 | 62 / 6,996 | 14 / 6,996 |
+| Telugu | 58 / 11,978 (0.5%) | 2 / 11,978 | 1,326 / 6,996 | 86 / 6,996 |
+
+INDICA is the Chinese TeleAntiFraud set machine-translated into Indic languages and read by TTS, so its scams are shopping, loan and app-download pitches. They are outside Saavdhaan's impersonation kill chain, which is why so few are flagged. The useful number is the false-alarm rate on about 48,000 everyday conversations: the spoken warning (L2+) fired twice and the on-screen Caution (L1) appeared on 0.0–0.5% of them, in these four languages. Assamese, Gujarati, Kannada, Malayalam, Odia and Tamil also show 0 / 11,978, but that is not evidence. Saavdhaan has no lexicon for the first five, so it can flag nothing there. Tamil, like Kannada, flagged none of the 6,996 scams either; INDICA cannot say whether its lexicon works. The dataset card states no licence, so it is used here for private evaluation only and nothing from it is committed.
 ## Gnani APIs used
 
 | API | Used for |
