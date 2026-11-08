@@ -104,6 +104,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
     send_lock = asyncio.Lock()
     alert_tasks = set()
     extraction_tasks = set()
+    extraction_by_turn = {}
 
     async def send(payload):
         """Send to the browser; a vanished browser is not an error here, the receive loop ends the call."""
@@ -195,12 +196,18 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if state.honeypot and state.persona_epoch == epoch:
             honeypot.merge(found, state.evidence, line, state.evidence_sources)
 
-    def schedule_extraction(line):
-        for pending in list(extraction_tasks):
-            pending.cancel()  # latest cumulative caller turn supersedes older unfinished work
+    def schedule_extraction(line, turn_key):
+        pending = extraction_by_turn.get(turn_key)
+        if pending is not None:
+            pending.cancel()  # supersede only this cumulative turn, not an earlier caller's evidence
         task = asyncio.create_task(extract_caller(line, state.persona_epoch))
         extraction_tasks.add(task)
-        task.add_done_callback(extraction_tasks.discard)
+        extraction_by_turn[turn_key] = task
+        def finished(done):
+            extraction_tasks.discard(done)
+            if extraction_by_turn.get(turn_key) is done:
+                extraction_by_turn.pop(turn_key, None)
+        task.add_done_callback(finished)
 
     async def persona_loop(lang):
         """Answer the caller one reply at a time, always to everything said since the last reply."""
@@ -293,7 +300,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                     state.history[-1]["content"] = (state.history[-1]["content"] + " " + msg["text"])[-MAX_CALLER_TURN:]  # caller kept talking: one turn, latest words kept
                 else:
                     state.history.append({"role": "user", "content": msg["text"][-MAX_CALLER_TURN:]})
-                schedule_extraction(state.history[-1]["content"])
+                schedule_extraction(state.history[-1]["content"], id(state.history[-1]))
                 if not state.persona_busy:
                     state.persona_busy = True  # set before spawning: two transcripts in one tick start one loop
                     spawn(persona_loop(lang))
