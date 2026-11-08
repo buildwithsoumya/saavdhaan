@@ -103,12 +103,17 @@ class Evidence(dict):
         self.statuses: dict[str, str] = {}
         self.pending_corrections: dict[str, dict] = {}
 
-    def observe(self, key, value, line, sources):
+    def observe(self, key, value, line, sources, turn_id=None):
         history = self.claim_history.setdefault(key, [])
-        observation = {"value": value, "said": line}
-        if observation in history:
+        observation = {"value": value, "said": line, **({"turn": turn_id} if turn_id is not None else {})}
+        same_turn = next((item for item in history if turn_id is not None and item.get("turn") == turn_id
+                          and item["value"].casefold() == value.casefold()), None)
+        if same_turn is not None:
+            same_turn["said"] = line
+        elif history and history[-1] == observation:
             return
-        history.append(observation)
+        else:
+            history.append(observation)
         if key not in self:
             self[key] = value
             self.statuses[key] = "claimed"
@@ -120,7 +125,8 @@ class Evidence(dict):
         denies = re.search(r"\b(?:no|not|never|incorrect)\b|नहीं|गलत", line, re.I)
         question = any(mark in line for mark in ("?", "؟")) or re.match(r"\s*(?:is|are|was|क्या)\b", line, re.I)
         correction = re.search(r"\b(?:correction|actually|instead)\b|सुधार|असल में", line, re.I)
-        if pending and pending["value"].casefold() == value.casefold() and line != pending["said"] and confirms and not denies and not question:
+        independent = turn_id is not None and pending and pending.get("turn") is not None and pending["turn"] != turn_id
+        if independent and pending["value"].casefold() == value.casefold() and confirms and not denies and not question:
             self[key] = value
             self.statuses[key] = "confirmed"
             self.alternatives.pop(key, None)
@@ -134,7 +140,7 @@ class Evidence(dict):
             return
         alternatives = self.alternatives.setdefault(key, [])
         if not any(item["value"].casefold() == value.casefold() for item in alternatives):
-            alternatives.append(observation)
+            alternatives.append({"value": value, "said": line})
         self.statuses[key] = "disputed"
         if correction:
             self.pending_corrections[key] = observation
@@ -298,7 +304,7 @@ def parse(content: str, evidence: dict) -> str:
     return data.get("reply") if isinstance(data.get("reply"), str) else ""
 
 
-def merge(found, evidence: dict, line: str = "", sources: dict | None = None) -> None:
+def merge(found, evidence: dict, line: str = "", sources: dict | None = None, *, turn_id=None) -> None:
     for k, v in (found.items() if isinstance(found, dict) else ()):
         if k not in EVIDENCE or not isinstance(v, str) or not v.strip():
             continue
@@ -313,7 +319,7 @@ def merge(found, evidence: dict, line: str = "", sources: dict | None = None) ->
         if not line or not matched:
             continue
         if isinstance(evidence, Evidence):
-            evidence.observe(k, value, line, sources)
+            evidence.observe(k, value, line, sources, turn_id)
             continue
         if k in evidence:
             continue
@@ -328,7 +334,7 @@ def quote_in_line(value: str, line: str) -> bool:
     return bool(clean(value)) and f" {clean(value)} " in f" {clean(line)} "
 
 
-async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None) -> None:
+async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict | None = None, turn_id=None) -> None:
     """Record what the caller just revealed. Separate from the reply: one model doing both forgets facts."""
     body = {"model": EXTRACT_MODEL, "temperature": 0, "max_tokens": 300, "reasoning_effort": "none",
             "response_format": {"type": "json_object"},
@@ -337,14 +343,14 @@ async def extract(c: httpx.AsyncClient, line: str, evidence: dict, sources: dict
     try:
         r = await c.post(GROQ_URL, json=body, headers={"Authorization": f"Bearer {settings.groq_api_key}"})
         r.raise_for_status()
-        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence, line, sources)
+        merge(json.loads(r.json()["choices"][0]["message"]["content"]), evidence, line, sources, turn_id=turn_id)
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as e:
         log.warning("honeypot evidence extraction failed: %s", e)  # the reply still goes out
 
 
-async def extract_bounded(c, line, evidence, sources):
+async def extract_bounded(c, line, evidence, sources, turn_id=None):
     try:
-        await asyncio.wait_for(extract(c, line, evidence, sources), timeout=EXTRACTION_BUDGET_S)
+        await asyncio.wait_for(extract(c, line, evidence, sources, turn_id), timeout=EXTRACTION_BUDGET_S)
     except asyncio.TimeoutError:
         log.warning("honeypot extraction exceeded its turn budget")
 
@@ -393,7 +399,7 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         async with httpx.AsyncClient(timeout=8, transport=transport) as c:
             caller = history[-1]["content"] if history and history[-1].get("role") == "user" else ""
             # return_exceptions: a failed reply must not leave the extraction running against a closed client
-            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources) if caller and extract_in_reply else asyncio.sleep(0),
+            content, _ = await asyncio.gather(ask(c), extract_bounded(c, caller, evidence, sources, len(history)-1) if caller and extract_in_reply else asyncio.sleep(0),
                                               return_exceptions=True)
         if isinstance(content, BaseException):
             raise content

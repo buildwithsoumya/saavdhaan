@@ -28,7 +28,7 @@ PRIVATE = re.compile(r"\b(?:otp|pin|password|aadhaar|cvv|card number)\b|ओट�
 URGENCY = re.compile(r"\bhurry\b|\bquick(?:ly)?\b|\bimmediately\b|\bright now\b|\bjaldi\b|\babhi\b|जल्दी|अभी", re.I)
 NEGATED_THREAT = re.compile(
     r"\b(?:not|never|won't)(?:\s+(?:be|being|get|getting|go|going|sent|to|in|face))*\s+(?:arrest\w*|jail|hurt|kill\w*)\b"
-    r"|\bno\s+(?:arrest\w*|jail)\b|(?:गिरफ्तार|जेल)(?:\s+\S+){0,2}\s+नहीं", re.I)
+    r"|\bno\s+(?:arrest\w*|jail)\b|(?:गिरफ्तार|जेल)(?:[ \t]+[^\s.,;!?।]+){0,2}[ \t]+नहीं", re.I)
 
 
 def asserted_threat(text: str) -> bool:
@@ -64,8 +64,8 @@ def persona_state(history: list[dict]) -> dict:
     """Only remember explicit persona statements; caller suggestions never create persona facts."""
     state = {}
     patterns = (
-        ("glasses", "missing", r"(?:can.t find|missing|looking for).*glasses|चश्मा.*(?:नहीं मिल|ढूँढ|खोज)"),
-        ("glasses", "found", r"(?:found|have).*glasses|चश्मा.*मिल गया"),
+        ("glasses", "found", r"\bI (?:found|have found|have got|have) (?:my|the) glasses\b|चश्मा.*मिल गया"),
+        ("glasses", "missing", r"(?:can.t find|haven.t found|don.t have|missing|looking for).*glasses|चश्मा.*(?:नहीं मिल|ढूँढ|खोज)"),
         ("bank_app", "loading", r"bank app.*(?:loading|not opening)|बैंक.*ऐप.*(?:खुल नहीं|खुल ही नहीं)"),
         ("network", "unclear", r"line.*(?:breaking|unclear)|आवाज़.*(?:कट|साफ़ नहीं)"),
     )

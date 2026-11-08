@@ -84,6 +84,9 @@ def test_structured_memory_tracks_resolved_obstacles_and_ignores_caller_suggesti
     state = persona_state(history)
     assert state["glasses"]["state"] == "found"
     assert "phone" not in state
+    for statement in ("I haven't found my glasses.", "I don't have my glasses.", "I have been looking for my glasses."):
+        assert persona_state([{"role": "assistant", "content": statement}])["glasses"]["state"] == "missing"
+    assert plan_turn(turns("हम आपको गिरफ्तार करेंगे, डरना नहीं"), {}).action == "calm"
 
 
 def test_credential_request_wins_even_when_combined_with_secrecy_and_threat():
