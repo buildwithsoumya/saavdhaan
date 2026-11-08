@@ -1,4 +1,4 @@
-from app.dialogue import memory_notes, plan_turn, repeats_reply
+from app.dialogue import memory_notes, persona_state, plan_turn, repeats_reply
 
 
 def turns(*lines):
@@ -77,3 +77,10 @@ def test_negated_threat_is_not_fear_but_a_later_assertion_is():
 
 def test_isolation_does_not_request_a_known_department():
     assert plan_turn(turns("Don't tell anyone"), {"department": "CBI"}).target is None
+
+
+def test_structured_memory_tracks_resolved_obstacles_and_ignores_caller_suggestions():
+    history = turns("You lost glasses", "I can't find my glasses.", "You lost your phone", "I found my glasses.")
+    state = persona_state(history)
+    assert state["glasses"]["state"] == "found"
+    assert "phone" not in state

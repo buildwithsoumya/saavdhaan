@@ -55,8 +55,28 @@ def question_targets(text: str) -> set[str]:
 def memory_notes(history: list[dict]) -> str:
     spoken = [m.get("content", "") for m in history if m.get("role") == "assistant"]
     return json.dumps({"first_spoken_replies": [line[:220] for line in spoken[:3]],
+                       "established_state": persona_state(history),
                        "questions_already_tried": sorted(set().union(*(question_targets(line) for line in spoken)))},
                       ensure_ascii=False)
+
+
+def persona_state(history: list[dict]) -> dict:
+    """Only remember explicit persona statements; caller suggestions never create persona facts."""
+    state = {}
+    patterns = (
+        ("glasses", "missing", r"(?:can.t find|missing|looking for).*glasses|चश्मा.*(?:नहीं मिल|ढूँढ|खोज)"),
+        ("glasses", "found", r"(?:found|have).*glasses|चश्मा.*मिल गया"),
+        ("bank_app", "loading", r"bank app.*(?:loading|not opening)|बैंक.*ऐप.*(?:खुल नहीं|खुल ही नहीं)"),
+        ("network", "unclear", r"line.*(?:breaking|unclear)|आवाज़.*(?:कट|साफ़ नहीं)"),
+    )
+    for message in history:
+        if message.get("role") != "assistant":
+            continue
+        text = message.get("content", "")
+        for key, value, pattern in patterns:
+            if re.search(pattern, text, re.I):
+                state[key] = {"state": value, "said": text[:220]}
+    return state
 
 
 def repeats_reply(line: str, history: list[dict]) -> bool:
