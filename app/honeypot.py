@@ -17,7 +17,7 @@ import re
 import httpx
 
 from app.config import settings
-from app.language_rules import DIGIT_WORDS
+from app.language_rules import DIGIT_WORDS, NEUTRAL_RECOVERY, REPEAT_RECOVERY
 from app.dialogue import memory_notes, plan_turn, repeats_reply
 from app.tracker import STAGE_NAMES, Tracker
 
@@ -158,6 +158,8 @@ STALL_MORE = {  # rotated so a run of failed turns never repeats one sentence
            "Please don't be angry, I am very scared. Whose name is the account in?",
            "The bank app is still loading. Can you tell me your full name and department again?"],
 }
+for _language in ("gu", "ml", "pa"):
+    STALL[_language] = NEUTRAL_RECOVERY[_language]
 FALLBACK_MODEL = "openai/gpt-oss-20b"
 EXTRACT_MODEL = "qwen/qwen3.8-27b"  # fast, separate quota; runs alongside the reply so it adds no delay
 EXTRACTION_BUDGET_S = 1.5
@@ -172,6 +174,9 @@ GOODBYE = {
     "kn": "ಕ್ಷಮಿಸಿ, ಬಾಗಿಲಲ್ಲಿ ಯಾರೋ ಬಂದಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಹೊತ್ತಿನಲ್ಲಿ ಮಾತನಾಡುತ್ತೇನೆ.",
     "te": "క్షమించండి, తలుపు దగ్గర ఎవరో వచ్చారు. కొద్దిసేపట్లో మాట్లాడతాను.",
     "mr": "माफ करा, दारावर कोणीतरी आलं आहे. थोड्या वेळाने बोलूया.",
+    "gu": "માફ કરશો, દરવાજે કોઈ આવ્યું છે. થોડી વાર પછી વાત કરીએ.",
+    "ml": "ക്ഷമിക്കണം, വാതിൽക്കൽ ആരോ വന്നിട്ടുണ്ട്. കുറച്ചു കഴിഞ്ഞ് സംസാരിക്കാം.",
+    "pa": "ਮਾਫ਼ ਕਰਨਾ, ਦਰਵਾਜ਼ੇ ਤੇ ਕੋਈ ਆਇਆ ਹੈ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਗੱਲ ਕਰਦੇ ਹਾਂ।",
 }
 
 CLOSING = """
@@ -399,12 +404,14 @@ async def reply(history: list[dict], code: str | None, evidence: dict | None = N
         line = STALL.get(lang, STALL["hi"])  # never leave the caller in silence
     if closing and (line in [STALL.get(lang, STALL["hi"]), *STALL_MORE.get(lang, [])] or "?" in line):
         return GOODBYE.get(lang, GOODBYE["hi"])
-    if history and line == STALL.get(lang, STALL["hi"]) and lang in ("en", "hi"):
+    if history and line == STALL.get(lang, STALL["hi"]):
         line = recovery_reply(history, lang, evidence)
     return fresh_stall(line, lang, history, evidence)
 
 
 def recovery_reply(history: list[dict], lang: str, evidence: dict) -> str:
+    if lang not in ("en", "hi"):
+        return NEUTRAL_RECOVERY.get(lang, NEUTRAL_RECOVERY["hi"])
     plan = plan_turn(history, evidence)
     if plan.action in ("calm", "deescalate", "slow_down", "stall"):
         return {"en": "Sorry, I am struggling to follow. Please explain slowly.",
@@ -428,6 +435,9 @@ def fresh_stall(line: str, lang: str, history: list[dict], evidence: dict | None
                      "The line is unclear. Please repeat the last instruction."] if lang == "en" else
                     ["माफ़ कीजिए, आप धीरे से समझाइए।", "मुझे समझने में समय लग रहा है। आप बोलिए।",
                      "आवाज़ साफ़ नहीं आ रही। आखिरी बात फिर से बताइए।"])
+    elif evidence is not None:
+        variants = [NEUTRAL_RECOVERY.get(lang, NEUTRAL_RECOVERY["hi"]),
+                    REPEAT_RECOVERY.get(lang, REPEAT_RECOVERY["hi"])]
     recent = {m["content"] for m in history[-8:] if m.get("role") == "assistant"}
     if line not in variants and not repeats_reply(line, history):
         return line

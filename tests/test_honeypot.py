@@ -17,7 +17,7 @@ def test_safe_blocks_numbers_payment_claims_and_tags():
     assert honeypot.safe("मैंने पैसे भेज दिए", "hi-IN") == honeypot.STALL["hi"]
     assert honeypot.safe("<whispers> (nervous) Which bank did you say, sir?", "en-IN") == "Which bank did you say, sir?"
     assert honeypot.safe("", "ta-IN") == honeypot.STALL["ta"]
-    assert honeypot.safe("x" * 300, "gu-IN") == honeypot.STALL["hi"]  # unknown language falls back
+    assert honeypot.safe("x" * 300, "xx-IN") == honeypot.STALL["hi"]
     assert honeypot.safe("hello " * 26, "en-IN") == honeypot.STALL["en"]
     assert honeypot.safe("How can I help you today?", "en-IN") == honeypot.STALL["en"]
 
