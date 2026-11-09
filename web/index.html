@@ -17,6 +17,14 @@
       <div><dt>भाषा · Language</dt><dd id="lang">—</dd></div>
       <div><dt>चेतावनी समय · Alert in</dt><dd id="latency">—</dd></div>
     </dl>
+    <a id="get-app" class="app-link" href="/saavdhaan.apk" aria-label="Android ऐप · Android app">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18h3"/></svg>
+      <span>ऐप · App</span>
+    </a>
+    <button id="pwa" class="app-link" type="button" aria-label="होम स्क्रीन पर जोड़ें · Add to Home screen" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
+      <span>इंस्टॉल · Install</span>
+    </button>
     <button id="listen" class="listen" type="button" aria-pressed="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 15Z"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
       <span id="listen-label">सुनना शुरू करें · Start listening</span>
@@ -99,14 +107,6 @@
           <input id="record" type="checkbox">
           <span>रिपोर्ट के लिए कॉल रिकॉर्ड करें · Record this call for a report</span>
         </label>
-        <fieldset class="enrol" id="install">
-          <legend>फ़ोन पर ऐप लगाएँ · Install on a phone</legend>
-          <div class="enrol-actions">
-            <a class="btn" href="/saavdhaan.apk" download>Android ऐप डाउनलोड करें · Download Android app</a>
-            <button id="pwa" class="btn btn-quiet" type="button" hidden>होम स्क्रीन पर जोड़ें · Add to Home screen</button>
-          </div>
-          <p class="hint">APK खोलें और इस स्रोत से इंस्टॉल की अनुमति दें। ऐप में वही लिंक डालें जिससे यह पेज खोला था (?t=… वाला)। · Open the APK and allow installing from this source. In the app, paste the same link you opened this page with (the one with ?t=…).</p>
-        </fieldset>
         <fieldset class="enrol">
           <legend>परिवार की आवाज़ जोड़ें · Add a family voice</legend>
           <p class="hint">5–30 सेकंड बोलें, जैसे: “माँ, मैं हूँ। अगर कोई अनजान फ़ोन पर पैसे या OTP माँगे, तो फ़ोन काट देना और मुझे बताना।” · Speak 5–30 seconds in a quiet room.</p>

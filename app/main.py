@@ -15,7 +15,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import alerts, enrol, gnani, honeypot, report
@@ -469,6 +469,10 @@ def get_report(call_id: str):
 APK_RELEASE = "https://api.github.com/repos/buildwithsoumya/saavdhaan/releases/latest"
 APK_MAX_AGE_S = 3600  # a new release reaches the download link within an hour
 APK_LOCK = asyncio.Lock()
+APK_MISSING = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saavdhaan</title><body style="font:1.2rem/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 16px">
+<p>ऐप अभी उपलब्ध नहीं है। थोड़ी देर बाद फिर कोशिश करें।<br>The Android app is not available right now. Please try again later.</p>
+<p><a href="/">वापस · Back</a></p>"""
 
 
 async def fetch_apk() -> bytes:
@@ -501,8 +505,8 @@ async def android_apk():
                 tmp.replace(path)
             except Exception as e:  # GitHub down or no token: serve the cached copy if there is one
                 log.warning("APK download from GitHub failed: %s", e)
-                if not path.exists():
-                    raise HTTPException(503, "the Android app is not available right now")
+                if not path.exists():  # a page, not JSON: the browser would save JSON as "saavdhaan.apk.json"
+                    return HTMLResponse(APK_MISSING, status_code=503)
                 path.touch()  # retry GitHub in an hour, not on every download
     return FileResponse(path, media_type="application/vnd.android.package-archive", filename="saavdhaan.apk")
 

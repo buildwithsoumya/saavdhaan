@@ -436,8 +436,16 @@ async function makeReport() {
 
 initSettings();
 
-// install: APK link everywhere except inside the Android app itself; PWA button where the browser offers it
-if (/; wv\)/.test(navigator.userAgent)) $("install").hidden = true;
+// App button: on an Android browser it opens the installed app already connected to this server
+// (no link to paste); if the app is missing, Chrome follows the fallback and downloads the APK.
+(() => {
+  const ua = navigator.userAgent, a = $("get-app"), token = store.get("token", "");
+  if (/; wv\)/.test(ua)) { a.hidden = true; return; } // already inside the app
+  if (!/Android/i.test(ua) || !token) return; // elsewhere it is a plain APK download
+  const link = `${location.origin}/?t=${encodeURIComponent(token)}`;
+  a.href = `intent://open?u=${encodeURIComponent(link)}#Intent;scheme=saavdhaan;package=com.saavdhaan.app;`
+    + `S.browser_fallback_url=${encodeURIComponent(`${location.origin}/saavdhaan.apk`)};end`;
+})();
 let installPrompt = null;
 addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();

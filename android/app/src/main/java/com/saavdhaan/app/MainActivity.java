@@ -77,6 +77,37 @@ public class MainActivity extends Activity {
         String url = prefs.getString(KEY_URL, null);
         if (url == null) showSetup(null);
         else openApp(url);
+        handleLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleLink(intent);
+    }
+
+    /** The App button on the Saavdhaan page opens saavdhaan://open?u=<link>, so nothing has to be pasted.
+     *  Any site can open such a link, so the app asks before switching to a new server. */
+    private void handleLink(Intent intent) {
+        Uri data = intent == null ? null : intent.getData();
+        if (data == null || !"saavdhaan".equalsIgnoreCase(data.getScheme())) return;
+        String url = data.getQueryParameter("u");
+        if (!validLink(url) || url.equals(prefs.getString(KEY_URL, null))) return;
+        new AlertDialog.Builder(this)
+                .setTitle("इस सर्वर से जुड़ें? · Connect to this server?")
+                .setMessage(Uri.parse(url).getHost())
+                .setPositiveButton("जोड़ें · Connect", (d, w) -> {
+                    prefs.edit().putString(KEY_URL, url).apply();
+                    openApp(url);
+                })
+                .setNegativeButton("नहीं · Cancel", null)
+                .show();
+    }
+
+    private static boolean validLink(String url) {
+        if (url == null) return false;
+        Uri u = Uri.parse(url.trim());
+        return "https".equalsIgnoreCase(u.getScheme()) && u.getHost() != null && u.getQueryParameter("t") != null;
     }
 
     @SuppressWarnings("deprecation")
@@ -102,9 +133,10 @@ public class MainActivity extends Activity {
         box.setPadding(pad, pad, pad, pad);
 
         TextView title = text("सावधान · Saavdhaan", 30, true);
-        TextView help = text("अपना Saavdhaan लिंक (?t=… वाला) यहाँ डालें: सर्वर का पता, या लैपटॉप पर python -m app.serve का लिंक।\n"
-                + "Paste your Saavdhaan link (the one with ?t=…): your server's address, "
-                + "or the link python -m app.serve prints on the laptop.", 17, false);
+        TextView help = text("आसान तरीका: फ़ोन के ब्राउज़र में Saavdhaan पेज खोलें और ऊपर “ऐप” दबाएँ।\n"
+                + "Easiest: open the Saavdhaan page in the phone's browser and tap “App” at the top.\n\n"
+                + "या अपना लिंक (?t=… वाला) यहाँ डालें · Or paste your link (the one with ?t=…): "
+                + "your server's address, or the link python -m app.serve prints on the laptop.", 17, false);
         EditText link = new EditText(this);
         link.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         link.setHint("https://saavdhaan.onrender.com/?t=…");
@@ -118,8 +150,7 @@ public class MainActivity extends Activity {
 
         go.setOnClickListener(v -> {
             String url = link.getText().toString().trim();
-            Uri u = Uri.parse(url);
-            if (!"https".equalsIgnoreCase(u.getScheme()) || u.getHost() == null || u.getQueryParameter("t") == null) {
+            if (!validLink(url)) {
                 err.setText("लिंक https://…/?t=… जैसा होना चाहिए · The link must look like https://…/?t=…");
                 return;
             }
