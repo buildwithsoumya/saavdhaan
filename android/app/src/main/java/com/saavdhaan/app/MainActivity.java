@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     private Uri origin;                 // the backend: scheme + host + port of the pasted link
     private PermissionRequest pendingMic;
     private AlertDialog sslDialog;
+    private AlertDialog linkDialog;     // "connect to this server?" from the page's App button
 
     @Override
     protected void onCreate(Bundle state) {
@@ -83,6 +84,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         handleLink(intent);
     }
 
@@ -91,9 +93,11 @@ public class MainActivity extends Activity {
     private void handleLink(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !"saavdhaan".equalsIgnoreCase(data.getScheme())) return;
+        intent.setData(null); // handled once: a recreated activity must not ask again
         String url = data.getQueryParameter("u");
         if (!validLink(url) || url.equals(prefs.getString(KEY_URL, null))) return;
-        new AlertDialog.Builder(this)
+        if (linkDialog != null) linkDialog.dismiss(); // one question at a time
+        linkDialog = new AlertDialog.Builder(this)
                 .setTitle("इस सर्वर से जुड़ें? · Connect to this server?")
                 .setMessage(Uri.parse(url).getHost())
                 .setPositiveButton("जोड़ें · Connect", (d, w) -> {
@@ -308,6 +312,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (linkDialog != null) linkDialog.dismiss();
         destroyWeb();
         super.onDestroy();
     }
