@@ -14,7 +14,6 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-93%20passing-17643a?style=flat-square)
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
-![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
 [How it works](#how-it-works) · [Screens](#the-guardian-page) · [Quick start](#quick-start) · [Testing](#testing-it-step-by-step) · [SaavdhaanBench](#saavdhaanbench) · [Project layout](#project-layout)
 
@@ -24,13 +23,13 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 &nbsp;
 <img src="docs/screenshots/mobile-stop.png" width="25%" alt="The same Stop state on a phone">
 
-<sub>A synthetic Hindi “digital arrest” call. Stage phrases and level come from the real tracker; Gnani streaming is not shown.</sub>
+<sub>A Hindi “digital arrest” test call. Stage phrases and level come from the real tracker; Gnani streaming is not shown.</sub>
 
 </div>
 
 ---
 
-Entry for Gnani AI's *Great Indian AI Internship Challenge*. All data in this repo is synthetic.
+Entry for Gnani AI's *Great Indian AI Internship Challenge*. No real calls, phone numbers or personal details are stored in this repo.
 
 ## Why
 
@@ -98,7 +97,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
 </tr>
 </table>
 
-<sub>Screens are the real page, filled with real tracker output for synthetic calls from <code>bench/calls/</code>. The post-call report was rendered by <code>app/report.py</code> from that call's script instead of a live diarized recording.</sub>
+<sub>Screens are the real page, filled with real tracker output for the benchmark calls in <code>bench/calls/</code>. The post-call report was rendered by <code>app/report.py</code> from that call's script instead of a live diarized recording.</sub>
 
 ## Features
 
@@ -114,7 +113,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
   - **It closes the trap itself:** once the caller has claimed authority, made a threat and asked for money, and has revealed a money trail (bank, account holder, UPI or app), the persona answers the next line with a believable goodbye ("my battery is dying, I'll try again soon"), so the caller suspects nothing. The call also stops after 12 replies even without a money trail.
   - **Proof for the elder:** the screen shows the facts the caller revealed and their own words for each scam stage, and tells the elder to hang up and report to 1930. Everything is also saved to `data/honeypot/<call>.json`.
   - **Verified facts:** a fact is accepted only when its words appear in the caller's transcript. The source line is saved and shown beside the fact. A hard reply cap and time limit end the trap with a spoken goodbye.
-  - **Pressure tests:** `python -m bench.honeypot_sim --case digital_arrest_en` previews a synthetic caller replay; add `--run` to use Groq credits and save its transcript under `bench/out/honeypot/`. `python -m bench.honeypot --strict data/honeypot/*.json` scores saved conversations for unsupported facts, silence, digits, payment claims, repetition, and latency. The replay checks text behavior; a speakerphone check is still needed for echo and interruption quality.
+  - **Pressure tests:** `python -m bench.honeypot_sim --case digital_arrest_en` previews a scripted caller replay; add `--run` to use Groq credits and save its transcript under `bench/out/honeypot/`. `python -m bench.honeypot --strict data/honeypot/*.json` scores saved conversations for unsupported facts, silence, digits, payment claims, repetition, and latency. The replay checks text behavior; a speakerphone check is still needed for echo and interruption quality.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
 - **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
 
@@ -238,12 +237,12 @@ real-world engagement or voice quality.
 The persona retains early speech and question history beyond the short model context. It changes strategy
 after refusals, limits repeated questions and records conflicting caller claims with their sources. Model
 failures use context-aware recovery lines in Hindi and English. Challenge generated replies with adaptive
-synthetic pressure using `python -m bench.honeypot_sim --case digital_arrest_en --pressure-turns 4 --run`.
+caller pressure using `python -m bench.honeypot_sim --case digital_arrest_en --pressure-turns 4 --run`.
 This makes paid Groq calls; omit `--run` to preview. Speakerphone checks are still necessary.
 
 <p align="center"><img src="docs/img/bench.svg" width="100%" alt="Benchmark pipeline: seed.py writes 60 call YAMLs; render.py synthesises them with Timbre v3.0; degrade.py applies 5 listening conditions; run.py streams them through 4 STT configs into the Tracker; results.csv feeds report.py which writes report.html. A free text-only path goes straight from the YAMLs to the Tracker. Below, the Pre-Payment Catch Rate formula."></p>
 
-A benchmark of 60 synthetic calls in `bench/calls/`:
+A benchmark of 60 scripted calls in `bench/calls/`:
 
 - **6 scam templates:** digital arrest, courier drugs, fake KYC, son accident, TRAI SIM block, ED virtual court.
 - **6 hard negatives:** a real bank fraud desk (“never share OTP”), a courier delivery code, a passport police verification, a relative urgently asking for money, a loan-collection call, a cyber-cell awareness call.

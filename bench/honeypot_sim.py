@@ -1,4 +1,4 @@
-"""Replay synthetic caller turns through the live honeypot persona.
+"""Replay scripted caller turns through the live honeypot persona.
 
 The caller side is fixed, so the run is reproducible. Groq is used only when
 --run is supplied; otherwise this command previews the selected cases.
@@ -51,7 +51,7 @@ async def simulate(call: dict, responder=honeypot.reply, pressure_turns: int = 0
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Replay synthetic scam scripts against the honeypot")
+    parser = argparse.ArgumentParser(description="Replay scripted scam calls against the honeypot")
     parser.add_argument("--limit", type=int, default=3)
     parser.add_argument("--case", help="run one case id, such as digital_arrest_en")
     parser.add_argument("--pressure-turns", type=int, default=0, help="append adaptive refusal and credential-pressure turns")
@@ -62,7 +62,7 @@ async def main() -> None:
         parser.error(f"unknown scam case: {args.case}")
     calls = calls[:args.limit]
     if not args.run:
-        print(f"Preview: {len(calls)} synthetic scam calls; add --run to use Groq")
+        print(f"Preview: {len(calls)} scripted scam calls; add --run to use Groq")
         for call in calls:
             print(call["id"])
         return

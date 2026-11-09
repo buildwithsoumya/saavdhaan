@@ -2,7 +2,7 @@
 
 ## scam-baiter
 
-The honeypot's turn tactics (`tactic_for` in `app/honeypot.py`) and the synthetic caller replay in `bench/honeypot.py` / `bench/honeypot_sim.py` adapt ideas from the persona-writing guidance and simulator of [agarg5/scam-baiter](https://github.com/agarg5/scam-baiter): pushing back on the first request for private data, a ready answer to "are you a bot?", avoiding assistant-like phrases, and grading transcripts offline. No code was copied; the rules are restated in Saavdhaan's own words, and Saavdhaan never supplies fake identity details.
+The honeypot's turn tactics (`tactic_for` in `app/honeypot.py`) and the scripted caller replay in `bench/honeypot.py` / `bench/honeypot_sim.py` adapt ideas from the persona-writing guidance and simulator of [agarg5/scam-baiter](https://github.com/agarg5/scam-baiter): pushing back on the first request for private data, a ready answer to "are you a bot?", avoiding assistant-like phrases, and grading transcripts offline. No code was copied; the rules are restated in Saavdhaan's own words, and Saavdhaan never supplies fake identity details.
 
 scam-baiter's README states that it is released under the MIT License. Its repository has no LICENSE file or copyright line, so none can be reproduced here. The MIT terms that apply:
 
