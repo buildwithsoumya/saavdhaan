@@ -219,4 +219,5 @@ def test_apk_unavailable_without_cache_is_a_clear_503(client, monkeypatch):
 
     monkeypatch.setattr(main, "fetch_apk", broken)
     r = client.get("/saavdhaan.apk")
-    assert r.status_code == 503 and "not available" in r.json()["detail"]
+    assert r.status_code == 503 and "not available" in r.text
+    assert r.headers["content-type"].startswith("text/html")  # never saved as a file

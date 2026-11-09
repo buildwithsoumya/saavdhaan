@@ -82,6 +82,24 @@ body {
 .listen:hover { background: #fff; }
 body[data-listening="true"] .listen { background: transparent; color: var(--paper); }
 body[data-listening="true"] .listen svg { stroke: #ff8a80; }
+.app-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 2px solid rgb(255 255 255 / 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font: 600 1rem/1.2 var(--font);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+.app-link:hover { background: rgb(255 255 255 / 0.1); border-color: var(--paper); }
+.app-link:focus-visible { outline-color: var(--paper); }
+.app-link svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 main {
   display: grid;
@@ -276,7 +294,11 @@ body.stamped .stamp { animation: stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
 @media (max-width: 700px) {
   body { font-size: 1.15rem; }
   .meta { order: 3; width: 100%; }
-  .listen { margin-left: auto; }
+  .bar { column-gap: 10px; }
+  .mark { margin-right: auto; font-size: 1.35rem; }
+  .listen { order: 2; width: 100%; justify-content: center; }
+  .app-link { padding: 8px 10px; }
+  .app-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .stages { grid-template-columns: 1fr; }
   .stages::before { inset: 10px auto 10px 25px; width: 3px; height: auto; }
   .stage { grid-template-columns: 54px 1fr; justify-items: start; text-align: left; column-gap: 14px; }
