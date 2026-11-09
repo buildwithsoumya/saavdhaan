@@ -48,6 +48,7 @@ class Call:
     turn_plans: list[dict] = field(default_factory=list)
     fillers: dict = field(default_factory=dict)  # (persona voice, line) -> audio, synthesised once per call
     filler_turn: int = 0
+    filler_langs: set = field(default_factory=set)  # (persona voice, language) already warmed
 
 
 CALLS: dict[str, Call] = {}
@@ -197,6 +198,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
 
     async def warm_fillers(lang):
         """Synthesise the filler lines up front: a filler that has to wait for TTS would not fill anything."""
+        if (hpvoice, honeypot.lang_of(lang)) in state.filler_langs:
+            return
+        state.filler_langs.add((hpvoice, honeypot.lang_of(lang)))
         for line in honeypot.FILLERS.get(honeypot.lang_of(lang), []):
             if (hpvoice, line) not in state.fillers:
                 try:
@@ -205,17 +209,18 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                     log.warning("honeypot filler unavailable: %s", e)
                     return
 
-    async def say_filler(lang):
+    async def say_filler(lang, epoch):
         lines = honeypot.FILLERS.get(honeypot.lang_of(lang), [])
-        if not lines:
+        ready = [line for line in lines if (hpvoice, line) in state.fillers]
+        if not ready:  # never make the caller wait for the filler itself; a new language warms for next time
+            if lines:
+                spawn(warm_fillers(lang))
             return
-        line = lines[state.filler_turn % len(lines)]
-        audio = state.fillers.get((hpvoice, line))
-        if audio is None:  # not ready yet: never make the caller wait for the filler itself
-            return
+        line = ready[state.filler_turn % len(ready)]
         state.filler_turn += 1
         await send({"type": "say", "text": line})
-        await send(audio)
+        if state.honeypot and state.persona_epoch == epoch:
+            await send(state.fillers[(hpvoice, line)])
 
     async def extract_caller(line):
         try:
@@ -261,7 +266,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 try:
                     done, _ = await asyncio.wait({writing}, timeout=FILLER_AFTER_S)
                     if not done and state.honeypot and state.persona_epoch == epoch:
-                        await say_filler(lang)
+                        await say_filler(lang, epoch)
                     line = await writing
                 except asyncio.CancelledError:
                     writing.cancel()

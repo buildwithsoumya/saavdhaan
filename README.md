@@ -12,7 +12,7 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-15233f?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-15233f?style=flat-square&logo=fastapi&logoColor=white)
 ![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-93%20passing-17643a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-202%20passing-17643a?style=flat-square)
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
 ![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
@@ -176,7 +176,7 @@ Steps 1–3 are free and need no network. Commands use the Windows path; use `.v
 **1. Unit tests.** Every Gnani and Groq call is mocked, and the tests never read your `.env`.
 
 ```bash
-.venv/Scripts/python -m pytest -q          # 93 passed
+.venv/Scripts/python -m pytest -q          # 202 passed
 ```
 
 **2. Talk to the tracker directly.**
@@ -287,6 +287,7 @@ curl.exe -L -o data\indica\Text_samples.tar.gz "https://huggingface.co/datasets/
 | Telugu | 58 / 11,978 (0.5%) | 2 / 11,978 | 1,326 / 6,996 | 86 / 6,996 |
 
 INDICA is the Chinese TeleAntiFraud set machine-translated into Indic languages and read by TTS, so its scams are shopping, loan and app-download pitches. They are outside Saavdhaan's impersonation kill chain, which is why so few are flagged. The useful number is the false-alarm rate on about 48,000 everyday conversations: the spoken warning (L2+) fired twice and the on-screen Caution (L1) appeared on 0.0–0.5% of them, in these four languages. Assamese, Gujarati, Kannada, Malayalam, Odia and Tamil also show 0 / 11,978, but that is not evidence. Saavdhaan has no lexicon for the first five, so it can flag nothing there. Tamil, like Kannada, flagged none of the 6,996 scams either; INDICA cannot say whether its lexicon works. The dataset card states no licence, so it is used here for private evaluation only and nothing from it is committed.
+
 ### Live speakerphone calls
 
 Seven role-played calls, recorded on 6–7 Nov 2026. A volunteer read a made-up “digital arrest” script on one phone, in English with some Hindi mixed in. Saavdhaan listened on speakerphone from a second device. The script and names were invented, so these calls are synthetic data too. The recordings stay in the gitignored `data/` folder and are not published; only the numbers below are.
