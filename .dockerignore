@@ -1,0 +1,10 @@
+.env
+.venv/
+.git/
+data/
+graphify-out/
+android/
+docs/
+bench/out/
+**/__pycache__/
+.pytest_cache/
