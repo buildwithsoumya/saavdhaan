@@ -503,6 +503,7 @@ async def android_apk():
                 log.warning("APK download from GitHub failed: %s", e)
                 if not path.exists():
                     raise HTTPException(503, "the Android app is not available right now")
+                path.touch()  # retry GitHub in an hour, not on every download
     return FileResponse(path, media_type="application/vnd.android.package-archive", filename="saavdhaan.apk")
 
 
