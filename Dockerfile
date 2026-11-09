@@ -9,6 +9,7 @@ WORKDIR /home/app/saavdhaan
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app . .
+RUN mkdir -p data && chown app:app data
 USER app
 
 # Render passes the port in $PORT; 8000 elsewhere
