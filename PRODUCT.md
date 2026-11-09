@@ -29,7 +29,7 @@ Speakerphone call in a home, often noisy. The elder may be frightened, told not 
 ## Capabilities and Constraints
 
 - Gnani Prisma v3.0 realtime STT, Timbre v3.0 TTS with audio tags, voice cloning, batch STT.
-- Test data only: no real phone numbers, Aadhaar, PAN, account numbers or recorded calls.
+- Synthetic data only: no real phone numbers, Aadhaar, PAN, account numbers or recorded calls.
 - National cyber-crime helpline 1930 is the single action the elder is pointed to.
 - UI labels are bilingual Hindi + English; spoken alerts follow the detected call language.
 

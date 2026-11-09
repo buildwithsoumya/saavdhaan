@@ -12,8 +12,9 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-15233f?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-15233f?style=flat-square&logo=fastapi&logoColor=white)
 ![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-93%20passing-17643a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-202%20passing-17643a?style=flat-square)
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
+![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
 [How it works](#how-it-works) · [Screens](#the-guardian-page) · [Quick start](#quick-start) · [Testing](#testing-it-step-by-step) · [SaavdhaanBench](#saavdhaanbench) · [Project layout](#project-layout)
 
@@ -29,7 +30,7 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 
 ---
 
-Entry for Gnani AI's *Great Indian AI Internship Challenge*. No real calls, phone numbers or personal details are stored in this repo.
+Entry for Gnani AI's *Great Indian AI Internship Challenge*. All data in this repo is synthetic, as the contest rules require: no real calls, phone numbers or personal details.
 
 ## Why
 
@@ -109,6 +110,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
   - **Consent:** the elder records their voice in Family settings and ticks a separate box: “This is my own voice. Saavdhaan may use it to talk to scam callers.” A voice enrolled only for warnings is never used to talk to callers. Without a consented own voice, Saavdhaan uses the neutral `Vasudha` voice, and it falls back to that voice if cloning fails mid-call.
   - **Rules enforced in code:** it never speaks digits or number words and never claims money was sent.
   - **The caller is never tipped off:** with honeypot allowed, warnings are screen-only (level stamp, stages, 1930 panel). Nothing is spoken that the call could pick up, including the L3 warning when the trap closes.
+  - **No dead air:** if a reply takes longer than 1.2 s to write, a short filler line in the persona's voice (“Haan… one minute”, “अच्छा… हाँ जी”) plays first, so the caller never hears seconds of silence. Fillers are synthesised once when honeypot mode starts, and they are not added to the conversation the LLM sees. Hindi and English only for now.
   - **A real conversation:** every turn it reads the caller's mood (it apologises and sounds frightened when they get angry), answers what they just said, and asks for one detail it does not have yet. A separate fast model runs in parallel to record each fact the caller reveals: name, department, badge or case number, office, bank, account holder, UPI ID or account, app or link. The persona therefore never asks for the same thing twice. Set `HONEYPOT_PERSONA` to match the voice (default `elderly woman`).
   - **It closes the trap itself:** once the caller has claimed authority, made a threat and asked for money, and has revealed a money trail (bank, account holder, UPI or app), the persona answers the next line with a believable goodbye ("my battery is dying, I'll try again soon"), so the caller suspects nothing. The call also stops after 12 replies even without a money trail.
   - **Proof for the elder:** the screen shows the facts the caller revealed and their own words for each scam stage, and tells the elder to hang up and report to 1930. Everything is also saved to `data/honeypot/<call>.json`.
@@ -174,7 +176,7 @@ Steps 1–3 are free and need no network. Commands use the Windows path; use `.v
 **1. Unit tests.** Every Gnani and Groq call is mocked, and the tests never read your `.env`.
 
 ```bash
-.venv/Scripts/python -m pytest -q          # 93 passed
+.venv/Scripts/python -m pytest -q          # 202 passed
 ```
 
 **2. Talk to the tracker directly.**
@@ -285,6 +287,26 @@ curl.exe -L -o data\indica\Text_samples.tar.gz "https://huggingface.co/datasets/
 | Telugu | 58 / 11,978 (0.5%) | 2 / 11,978 | 1,326 / 6,996 | 86 / 6,996 |
 
 INDICA is the Chinese TeleAntiFraud set machine-translated into Indic languages and read by TTS, so its scams are shopping, loan and app-download pitches. They are outside Saavdhaan's impersonation kill chain, which is why so few are flagged. The useful number is the false-alarm rate on about 48,000 everyday conversations: the spoken warning (L2+) fired twice and the on-screen Caution (L1) appeared on 0.0–0.5% of them, in these four languages. Assamese, Gujarati, Kannada, Malayalam, Odia and Tamil also show 0 / 11,978, but that is not evidence. Saavdhaan has no lexicon for the first five, so it can flag nothing there. Tamil, like Kannada, flagged none of the 6,996 scams either; INDICA cannot say whether its lexicon works. The dataset card states no licence, so it is used here for private evaluation only and nothing from it is committed.
+
+### Live speakerphone calls
+
+Seven role-played calls, recorded on 6–7 Nov 2026. A volunteer read a made-up “digital arrest” script on one phone, in English with some Hindi mixed in. Saavdhaan listened on speakerphone from a second device. The script and names were invented, so these calls are synthetic data too. The recordings stay in the gitignored `data/` folder and are not published; only the numbers below are.
+
+| Call | Length | Highest level | L2 reached | First money ask | Honeypot replies | Evidence the caller gave away | Median reply time |
+|---|---|---|---|---|---:|---|---|
+| 1 | 3.0 min | L3 Stop | 0:21 | 1:25 | 8 | name, badge/case no., office, UPI/account, bank | 4.9 s |
+| 2 | 3.8 min | L2 or higher | – | – | 12 | name, department, office, bank, app/link | 5.5 s |
+| 3 | 2.1 min | L2 or higher | – | – | 2 | not logged (older log format) | – |
+| 4 | 5.3 min | L2 or higher | – | – | 20 | not logged (older log format) | – |
+| 5 | 1.6 min | L3 Stop | 0:29 | 1:07 | – | honeypot not used | – |
+| 6 | 2.2 min | L2 Saavdhaan | 0:28 | – | 7 | not logged (older log format) | – |
+| 7 | 3.1 min | L3 Stop | 0:31 | 2:23 | 8 | name, department, office, badge/case no., bank, UPI/account, app/link | not logged |
+
+- **Warned before the money ask:** in the three calls with a stage timeline and a money ask, L2 came 38–112 s before the caller first asked for money (median 64 s). The times come from the post-call report (batch STT on the recording), so they mark when the caller said the words; the live warning follows the end of that sentence.
+- Calls 2–4 have no post-call report. The honeypot only starts at L2, so those calls reached at least L2.
+- **Honeypot reply time:** over the 20 replies with timing logged, the median was 5.4 s and the maximum 8.1 s, measured from the caller's transcript arriving to the reply audio being sent. Most of that time is the LLM writing the reply and Timbre speaking it. Since these runs, a short filler line covers any reply slower than 1.2 s (see *No dead air* above); the full reply still takes as long.
+- The alert latency (end of speech to warning) is shown live on the page, but it was not saved during these runs.
+
 ## Gnani APIs used
 
 | API | Used for |

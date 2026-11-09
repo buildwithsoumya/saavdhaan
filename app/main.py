@@ -46,10 +46,14 @@ class Call:
     language: str = "hi-IN"
     persona_epoch: int = 0
     turn_plans: list[dict] = field(default_factory=list)
+    fillers: dict = field(default_factory=dict)  # (persona voice, line) -> audio, synthesised once per call
+    filler_turn: int = 0
+    filler_langs: set = field(default_factory=set)  # (persona voice, language) already warmed
 
 
 CALLS: dict[str, Call] = {}
 MAX_CALLER_TURN = 1000  # chars of one unbroken caller turn sent to the models
+FILLER_AFTER_S = 1.2  # a persona reply slower than this gets a short filler line first
 MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
 CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
@@ -138,6 +142,7 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if on:
             state.honeypot_started = time.monotonic()
             spawn(limit_honeypot(state.honeypot_started))
+            spawn(warm_fillers(state.language))
         if not on and state.history:  # evidence log first, the browser may already be gone
             save_log(reason)
         msg = {"type": "honeypot", "on": on, "reason": reason}
@@ -191,6 +196,32 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         return await gnani.tts(line, voice=settings.honeypot_voice,
                                language=f"{honeypot.lang_of(lang)}-IN", speed=0.9)
 
+    async def warm_fillers(lang):
+        """Synthesise the filler lines up front: a filler that has to wait for TTS would not fill anything."""
+        if (hpvoice, honeypot.lang_of(lang)) in state.filler_langs:
+            return
+        state.filler_langs.add((hpvoice, honeypot.lang_of(lang)))
+        for line in honeypot.FILLERS.get(honeypot.lang_of(lang), []):
+            if (hpvoice, line) not in state.fillers:
+                try:
+                    state.fillers[(hpvoice, line)] = await persona_audio(line, lang)
+                except Exception as e:
+                    log.warning("honeypot filler unavailable: %s", e)
+                    return
+
+    async def say_filler(lang, epoch):
+        lines = honeypot.FILLERS.get(honeypot.lang_of(lang), [])
+        ready = [line for line in lines if (hpvoice, line) in state.fillers]
+        if not ready:  # never make the caller wait for the filler itself; a new language warms for next time
+            if lines:
+                spawn(warm_fillers(lang))
+            return
+        line = ready[state.filler_turn % len(ready)]
+        state.filler_turn += 1
+        await send({"type": "say", "text": line})
+        if state.honeypot and state.persona_epoch == epoch:
+            await send(state.fillers[(hpvoice, line)])
+
     async def extract_caller(line):
         try:
             return await honeypot.extract_claims(line)
@@ -230,8 +261,16 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 closing_now = (state.closing or turns >= honeypot.MAX_EXCHANGES - 1 or
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
                 plan = honeypot.plan_turn(state.history, state.evidence)
-                line = await honeypot.reply(state.history, lang, state.evidence, closing_now,
-                                            state.evidence_sources, extract_in_reply=False)
+                writing = asyncio.ensure_future(honeypot.reply(state.history, lang, state.evidence, closing_now,
+                                                               state.evidence_sources, extract_in_reply=False))
+                try:
+                    done, _ = await asyncio.wait({writing}, timeout=FILLER_AFTER_S)
+                    if not done and state.honeypot and state.persona_epoch == epoch:
+                        await say_filler(lang, epoch)
+                    line = await writing
+                except asyncio.CancelledError:
+                    writing.cancel()
+                    raise
                 if not state.honeypot or state.persona_epoch != epoch:
                     return
                 if state.history[-1]["content"] != asked:

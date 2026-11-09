@@ -185,6 +185,13 @@ GOODBYE = {
     "pa": "ਮਾਫ਼ ਕਰਨਾ, ਦਰਵਾਜ਼ੇ ਤੇ ਕੋਈ ਆਇਆ ਹੈ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਗੱਲ ਕਰਦੇ ਹਾਂ।",
 }
 
+# Spoken while a slow reply is still being written, so the caller never hears seconds of silence.
+# ponytail: hi and en only; other languages stay silent until native speakers write lines for them.
+FILLERS = {
+    "hi": ["हाँ… एक मिनट।", "अच्छा… हाँ जी।", "हम्म… रुकिए ज़रा।"],
+    "en": ["Haan… one minute.", "Okay… yes, yes.", "Hmm… wait a little."],
+}
+
 CLOSING = """
 
 You now have enough. End the call in this reply, naturally and without any suspicion: a believable everyday

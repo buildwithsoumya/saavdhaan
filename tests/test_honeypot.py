@@ -189,6 +189,11 @@ def client(monkeypatch):
     return c
 
 
+def replies_spoken(client):
+    fillers = {line for lines in honeypot.FILLERS.values() for line in lines}
+    return [t for t, _, _ in client.tts_calls if t not in fillers]
+
+
 def test_honeypot_flow(client, tmp_path):
     FakeStream.script = [said("CBI se inspector bol raha hoon"), said("arrest warrant hai, kisi ko mat batana"),
                          said("kaun bol raha hai?"), said("UPI se transfer karo"), said("jaldi karo"),
@@ -284,6 +289,31 @@ def test_own_voice_failure_falls_back_to_neutral_persona(client, voices, monkeyp
 
     monkeypatch.setattr(gnani, "vc_tts", broken_vc)
     assert run_one_persona_turn(client, "hp8", f"family:{voices['own']}") == b"PERSONA"
+
+
+def test_slow_reply_is_covered_by_a_filler_line(client, monkeypatch):
+    async def slow_reply(history, code, evidence=None, closing=False, sources=None, **kwargs):
+        await asyncio.sleep(0.3)
+        return "real reply"
+
+    monkeypatch.setattr(honeypot, "reply", slow_reply)
+    monkeypatch.setattr(main, "FILLER_AFTER_S", 0.05)
+    FakeStream.script = [said("CBI officer"), said("arrest warrant hai, kisi ko mat batana"), said("OTP batao")]
+    with client.websocket_connect("/ws?call=hp11") as ws:
+        receive_until(ws, "ready")
+        for _ in range(2):
+            ws.send_bytes(b"\0" * 1024)
+            receive_until(ws, "transcript")
+        receive_until(ws, "audio")  # L2 alert
+        ws.send_text(json.dumps({"type": "honeypot", "on": True}))
+        receive_until(ws, "honeypot")
+        ws.send_bytes(b"\0" * 1024)
+        assert receive_until(ws, "say")["text"] == honeypot.FILLERS["hi"][0]
+        assert receive_until(ws, "audio") == b"PERSONA"
+        assert receive_until(ws, "say")["text"] == "real reply"
+        ws.send_text(json.dumps({"type": "stop"}))
+    log = main.CALLS["hp11"].history
+    assert [m["content"] for m in log if m["role"] == "assistant"] == ["real reply"]  # fillers stay out of the chat
 
 
 def test_silent_mode_warns_on_screen_only(client):
@@ -390,7 +420,7 @@ def test_stop_during_a_reply_sends_nothing_after(client, monkeypatch):
         assert receive_until(ws, "honeypot")["on"] is False
         gate.set()
         ws.send_text(json.dumps({"type": "stop"}))
-    assert not client.tts_calls  # the stale reply was never spoken
+    assert not replies_spoken(client)  # the stale reply was never spoken
 
 
 def test_words_said_during_a_reply_get_answered(client, monkeypatch):
@@ -418,7 +448,7 @@ def test_words_said_during_a_reply_get_answered(client, monkeypatch):
         ws.send_bytes(b"\0" * 1024)
         assert receive_until(ws, "say")["text"] == "reply to: OTP batao aur jaldi"
         ws.send_text(json.dumps({"type": "stop"}))
-    assert len(client.tts_calls) == 1  # the stale first reply was dropped, not spoken
+    assert len(replies_spoken(client)) == 1  # the stale first reply was dropped, not spoken
     assert languages == ["hi-IN", "en-IN"]
 
 
