@@ -6,7 +6,7 @@ phone_snr10    pink noise mixed at ~10 dB SNR before the phone line
 phone_snr5     same at ~5 dB SNR
 phone_dropout  phone line with random 20-60 ms dropouts (about one every 2 s)
 
-Noise is synthetic: ffmpeg's `anoisesrc` pink noise with a fixed seed, so no
+Noise is generated: ffmpeg's `anoisesrc` pink noise with a fixed seed, so no
 recorded audio is involved. SNR uses ffmpeg `volumedetect` mean levels over the
 whole file (gaps included) and is applied before the 300-3400 Hz band-pass, which
 removes much of the pink noise's low end, so in-band SNR during speech is higher

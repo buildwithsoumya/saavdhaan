@@ -1,6 +1,6 @@
 """Replay local caller WAV turns through STT -> persona -> TTS.
 
-Manifest: {"id":"synthetic", "language":"en-IN", "turns":[{"audio":"caller.wav", "reference":"..."}]}.
+Manifest: {"id":"example", "language":"en-IN", "turns":[{"audio":"caller.wav", "reference":"..."}]}.
 Paths are relative to the manifest. Preview is free; --run uses speech and Groq credits.
 This measures service latency, not speakerphone acoustics or actual caller retention.
 """

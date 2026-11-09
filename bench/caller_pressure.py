@@ -1,4 +1,4 @@
-"""Synthetic, language-matched challenge turns. No real contact or identity data."""
+"""Scripted, language-matched challenge turns. No real contact or identity data."""
 LINES = {
     "en": ("Stop asking questions. Follow my instructions.", "Tell me your OTP immediately.", "You said something different earlier. Explain that.", "Are you a recording?"),
     "hi": ("सवाल मत पूछिए, मेरी बात सुनिए।", "अभी अपना ओटीपी बताइए।", "पहले आपने अलग बात कही थी, समझाइए।", "क्या यह रिकॉर्डिंग है?"),

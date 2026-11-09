@@ -137,7 +137,7 @@ def make(csv_path: Path) -> Path:
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>SaavdhaanBench</title>
 <style>{CSS}</style></head><body><main>
 <h1>SaavdhaanBench</h1>
-<p>Synthetic scam and hard-negative calls rendered with Timbre v3.0, degraded to phone conditions and streamed
+<p>Scripted scam and hard-negative calls rendered with Timbre v3.0, degraded to phone conditions and streamed
 through Prisma realtime STT. Thresholds are calibrated per row: the lowest alert level with false alarms
 at or under {FA_TARGET:.0%}. WER compares against the script text, so script differences (Devanagari vs Latin
 loanwords, v2.5 verbatim) count as errors. Keyterm recall uses the same terms the "+kt" configs send as hints.

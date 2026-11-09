@@ -4,7 +4,7 @@ from bench.honeypot_sim import simulate
 from bench.render import load_calls
 
 
-def test_synthetic_caller_replay_uses_live_reply_interface():
+def test_scripted_caller_replay_uses_live_reply_interface():
     seen = []
     async def responder(history, language, evidence, closing, sources):
         seen.append((history[-1]["content"], language, closing))
