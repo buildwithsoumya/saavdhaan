@@ -12,7 +12,7 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-15233f?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-15233f?style=flat-square&logo=fastapi&logoColor=white)
 ![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-202%20passing-17643a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-204%20passing-17643a?style=flat-square)
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
 ![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
@@ -158,7 +158,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk   # or copy the APK to the phone and open it
 ```
 
-**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so the link works only in a browser signed in to GitHub with access to it (on the phone too).
+**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so that link works only in a browser signed in to GitHub. A deployed server serves the same APK without GitHub at `/saavdhaan.apk` (**Family settings → Install on a phone**), given a read-only `GITHUB_TOKEN` (fine-grained, Contents: read) in its environment.
 
 Open the app, paste the link printed by `app.serve`, compare the fingerprint, and tap **Trust**. Press Back on the main page to change the laptop link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
 
@@ -176,7 +176,7 @@ Steps 1–3 are free and need no network. Commands use the Windows path; use `.v
 **1. Unit tests.** Every Gnani and Groq call is mocked, and the tests never read your `.env`.
 
 ```bash
-.venv/Scripts/python -m pytest -q          # 202 passed
+.venv/Scripts/python -m pytest -q          # 204 passed
 ```
 
 **2. Talk to the tracker directly.**

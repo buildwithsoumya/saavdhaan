@@ -435,6 +435,21 @@ async function makeReport() {
 }
 
 initSettings();
+
+// install: APK link everywhere except inside the Android app itself; PWA button where the browser offers it
+if (/; wv\)/.test(navigator.userAgent)) $("install").hidden = true;
+let installPrompt = null;
+addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $("pwa").hidden = false;
+});
+$("pwa").addEventListener("click", async () => {
+  installPrompt?.prompt();
+  await installPrompt?.userChoice;
+  installPrompt = null;
+  $("pwa").hidden = true;
+});
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((err) => console.warn("offline app shell unavailable:", err));
 }

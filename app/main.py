@@ -13,6 +13,7 @@ import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -462,6 +463,47 @@ def get_report(call_id: str):
         raise HTTPException(404, "no report yet")
     return FileResponse(path, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
                                        "Referrer-Policy": "no-referrer"})
+
+
+
+APK_RELEASE = "https://api.github.com/repos/buildwithsoumya/saavdhaan/releases/latest"
+APK_MAX_AGE_S = 3600  # a new release reaches the download link within an hour
+APK_LOCK = asyncio.Lock()
+
+
+async def fetch_apk() -> bytes:
+    headers = {"Accept": "application/vnd.github+json"}
+    if settings.github_token:
+        headers["Authorization"] = f"Bearer {settings.github_token}"
+    # httpx drops the Authorization header when GitHub redirects the download to its file host
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as http:
+        r = await http.get(APK_RELEASE, headers=headers)
+        r.raise_for_status()
+        asset = next((a for a in r.json()["assets"] if a["name"] == "saavdhaan.apk"), None)
+        if asset is None:
+            raise RuntimeError("the latest release has no saavdhaan.apk")
+        r = await http.get(asset["url"], headers={**headers, "Accept": "application/octet-stream"})
+        r.raise_for_status()
+        return r.content
+
+
+@app.get("/saavdhaan.apk")
+async def android_apk():
+    """The Android app from the latest GitHub release, cached for an hour, so phones never need GitHub."""
+    path = Path(settings.data_dir) / "saavdhaan.apk"
+    async with APK_LOCK:
+        if not path.exists() or time.time() - path.stat().st_mtime > APK_MAX_AGE_S:
+            try:
+                data = await fetch_apk()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = path.with_suffix(".part")
+                await asyncio.to_thread(tmp.write_bytes, data)
+                tmp.replace(path)
+            except Exception as e:  # GitHub down or no token: serve the cached copy if there is one
+                log.warning("APK download from GitHub failed: %s", e)
+                if not path.exists():
+                    raise HTTPException(503, "the Android app is not available right now")
+    return FileResponse(path, media_type="application/vnd.android.package-archive", filename="saavdhaan.apk")
 
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

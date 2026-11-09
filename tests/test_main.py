@@ -196,3 +196,27 @@ def test_reconnect_replaces_the_previous_socket(client):
             receive_until(second, "ready")
             assert first.receive()["type"] == "websocket.close"  # old browser socket closed
             assert main.CALLS["dup"].socket is not None
+
+
+def test_apk_is_served_from_the_release_and_cached(client, monkeypatch):
+    fetched = []
+
+    async def fake_fetch():
+        fetched.append(1)
+        return b"APK-BYTES"
+
+    monkeypatch.setattr(main, "fetch_apk", fake_fetch)
+    for _ in range(2):
+        r = client.get("/saavdhaan.apk")
+        assert r.status_code == 200 and r.content == b"APK-BYTES"
+        assert r.headers["content-type"] == "application/vnd.android.package-archive"
+    assert len(fetched) == 1  # the second download comes from the cache
+
+
+def test_apk_unavailable_without_cache_is_a_clear_503(client, monkeypatch):
+    async def broken():
+        raise RuntimeError("no network")
+
+    monkeypatch.setattr(main, "fetch_apk", broken)
+    r = client.get("/saavdhaan.apk")
+    assert r.status_code == 503 and "not available" in r.json()["detail"]

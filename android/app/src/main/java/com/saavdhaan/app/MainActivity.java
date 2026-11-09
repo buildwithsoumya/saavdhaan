@@ -40,8 +40,8 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Saavdhaan listener app: a full-screen WebView on the laptop backend started with
- * `python -m app.serve`. The API keys stay on the laptop; this app only adds what a
+ * Saavdhaan listener app: a full-screen WebView on the backend, either a hosted server or
+ * a laptop running `python -m app.serve`. The API keys stay on the backend; this app only adds what a
  * browser tab lacks: an installed icon, mic permission without prompts on every visit,
  * the screen kept on, and trust in the backend's self-signed certificate.
  *
@@ -102,12 +102,12 @@ public class MainActivity extends Activity {
         box.setPadding(pad, pad, pad, pad);
 
         TextView title = text("सावधान · Saavdhaan", 30, true);
-        TextView help = text("लैपटॉप पर python -m app.serve चलाएँ और जो लिंक दिखे उसे यहाँ डालें।\n"
-                + "Run python -m app.serve on the laptop and paste the link it prints:\n"
-                + "https://<laptop-ip>:8443/?t=<token>", 17, false);
+        TextView help = text("अपना Saavdhaan लिंक (?t=… वाला) यहाँ डालें: सर्वर का पता, या लैपटॉप पर python -m app.serve का लिंक।\n"
+                + "Paste your Saavdhaan link (the one with ?t=…): your server's address, "
+                + "or the link python -m app.serve prints on the laptop.", 17, false);
         EditText link = new EditText(this);
         link.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        link.setHint("https://192.168.1.5:8443/?t=…");
+        link.setHint("https://saavdhaan.onrender.com/?t=…");
         link.setText(prefs.getString(KEY_URL, ""));
         link.setTextSize(18);
         Button go = new Button(this);
@@ -120,7 +120,7 @@ public class MainActivity extends Activity {
             String url = link.getText().toString().trim();
             Uri u = Uri.parse(url);
             if (!"https".equalsIgnoreCase(u.getScheme()) || u.getHost() == null || u.getQueryParameter("t") == null) {
-                err.setText("लिंक https://…:8443/?t=… जैसा होना चाहिए · The link must look like https://…:8443/?t=…");
+                err.setText("लिंक https://…/?t=… जैसा होना चाहिए · The link must look like https://…/?t=…");
                 return;
             }
             prefs.edit().putString(KEY_URL, url).apply();
@@ -230,8 +230,9 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError e) {
                 // a refused certificate is handled by the trust dialog, not reported as "cannot reach"
                 if (req.isForMainFrame() && e.getErrorCode() != WebViewClient.ERROR_FAILED_SSL_HANDSHAKE) {
-                    showSetupLater("लैपटॉप से नहीं जुड़ पाया · Cannot reach the laptop: " + e.getDescription()
-                            + "\nSame Wi-Fi? Is python -m app.serve running? Did the laptop's IP change?");
+                    showSetupLater("Saavdhaan से नहीं जुड़ पाया · Cannot reach Saavdhaan: " + e.getDescription()
+                            + "\nIs the internet on? A sleeping free server can take a minute to wake: try again."
+                            + "\nOn a laptop: same Wi-Fi? Is python -m app.serve running? Did its IP change?");
                 }
             }
         });
@@ -267,7 +268,7 @@ public class MainActivity extends Activity {
         if (web == null) { finish(); return; }
         if (web.canGoBack()) { web.goBack(); return; }
         new AlertDialog.Builder(this)
-                .setItems(new String[]{"लैपटॉप बदलें · Change laptop link", "बंद करें · Close app"}, (d, which) -> {
+                .setItems(new String[]{"लिंक बदलें · Change link", "बंद करें · Close app"}, (d, which) -> {
                     if (which == 0) showSetup(null);
                     else finish();
                 })

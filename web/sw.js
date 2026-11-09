@@ -8,7 +8,8 @@ self.addEventListener("activate", (e) => e.waitUntil(
   caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== SHELL).map((k) => caches.delete(k))))));
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/reports/")) return;
+  if (e.request.method !== "GET" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/reports/")
+    || url.pathname.endsWith(".apk")) return; // the 2 MB APK is never cached
   // network first, so a redeploy shows up at once; cache when offline
   e.respondWith(fetch(e.request).then((r) => {
     if (r.ok && r.status === 200) { // never cache errors or partial responses
