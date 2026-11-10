@@ -119,7 +119,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
   - **Verified facts:** a fact is accepted only when its words appear in the caller's transcript. The source line is saved and shown beside the fact. A hard reply cap and time limit end the trap with a spoken goodbye.
   - **Pressure tests:** `python -m bench.honeypot_sim --case digital_arrest_en` previews a scripted caller replay; add `--run` to use Groq credits and save its transcript under `bench/out/honeypot/`. `python -m bench.honeypot --strict data/honeypot/*.json` scores saved conversations for unsupported facts, silence, digits, payment claims, repetition, and latency. The replay checks text behavior; a speakerphone check is still needed for echo and interruption quality.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
-- **Phone app:** the page installs as a PWA (**Install** in the top bar), or as the Android app (**App** in the top bar), with the screen kept awake while listening. It runs from a hosted server or from a laptop on your Wi-Fi.
+- **Phone app:** the page installs as a PWA (**Install** in the top bar, where the browser offers it), or as the Android app (**App** in the top bar), with the screen kept awake while listening. It runs from a hosted server or from a laptop on your Wi-Fi.
 
 ## Quick start
 
