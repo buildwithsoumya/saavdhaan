@@ -133,6 +133,9 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         if hpvoice.startswith(alerts.FAMILY) and not enrol.load(hpvoice[len(alerts.FAMILY):], visitor):
             hpvoice = ""
     if capped:
+        if ACTIVE.get(call) not in (None, visitor):  # someone else's live call
+            await ws.close(code=1008)
+            return
         if ACTIVE.get(call) != visitor:  # a reconnect of the visitor's own call is always allowed
             if sum(v == visitor for v in ACTIVE.values()) >= settings.demo_calls_per_visitor:
                 return await refuse(ws, demo.ONE_CALL)
@@ -457,34 +460,47 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             task.cancel()
         for t in list(alert_tasks):
             t.cancel()
-        if state.socket in (ws, None):  # an old socket closing must not end a reconnected call's honeypot
-            await set_honeypot(False, "ended")
+        current = state.socket in (ws, None)  # an old socket closing must not end a reconnected call's honeypot
         if state.socket is ws:
             state.socket = None
-            ACTIVE.pop(call, None)
+            ACTIVE.pop(call, None)  # before anything that can raise: a leaked entry would block the demo
+        if current:
+            await set_honeypot(False, "ended")
         if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops
             await asyncio.to_thread(save_recording, call, bytes(state.pcm))
         await stream.close()
+
+
+def reserve(keys: list[tuple[str, int]]) -> None:
+    """Count one use against every (key, limit), or none of them and answer 429."""
+    for i, (key, limit) in enumerate(keys):
+        if not BUDGET.take(key, limit):
+            refund(keys[:i])
+            raise HTTPException(429, demo.LIMIT)
+
+
+def refund(keys: list[tuple[str, int]]) -> None:
+    for key, _ in keys:
+        BUDGET.add(key, -1)
 
 
 @app.post("/api/voices")
 async def enrol_voice(request: Request, audio: UploadFile = File(...), name: str = Form(...),
                       consent: bool = Form(False), honeypot: bool = Form(False)):
     visitor, capped = visitor_of(request)
-    mine = f"voices:{visitor}"
-    if capped and (BUDGET.used(mine) >= settings.demo_voices_per_visitor
-                   or BUDGET.used("voices") >= settings.demo_voices_total):
-        raise HTTPException(429, demo.LIMIT)
+    keys = [("voices", settings.demo_voices_total), (f"voices:{visitor}", settings.demo_voices_per_visitor)]
+    if capped:
+        reserve(keys)  # before the paid call, so parallel requests can't all pass the check
     try:
-        voice = await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent, honeypot, visitor)
-    except enrol.EnrolError as e:
-        raise HTTPException(400, str(e))
-    except gnani.GnaniError as e:
-        raise HTTPException(502, f"voice service failed: {e}")
-    if capped:  # only successful clones count
-        BUDGET.add(mine)
-        BUDGET.add("voices")
-    return voice
+        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent, honeypot, visitor)
+    except Exception as e:
+        if capped:  # only successful clones count
+            refund(keys)
+        if isinstance(e, enrol.EnrolError):
+            raise HTTPException(400, str(e))
+        if isinstance(e, gnani.GnaniError):
+            raise HTTPException(502, f"voice service failed: {e}")
+        raise
 
 
 @app.get("/api/voices")
@@ -519,17 +535,18 @@ async def make_report(call_id: str, request: Request):
         raise HTTPException(404, "this call was not recorded (recording is opt-in)")
     if call_id in REPORTS_IN_FLIGHT:
         raise HTTPException(409, "the report is already being made")
-    if capped and BUDGET.used(f"reports:{visitor}") >= settings.demo_reports_per_visitor:
-        raise HTTPException(429, demo.LIMIT)
+    keys = [(f"reports:{visitor}", settings.demo_reports_per_visitor)]
+    if capped:
+        reserve(keys)
     REPORTS_IN_FLIGHT.add(call_id)
     try:
         await report.build(wav)
     except Exception as e:  # ffmpeg, network, batch failure: always a readable JSON error
+        if capped:
+            refund(keys)
         raise HTTPException(502, f"report failed: {e}")
     finally:
         REPORTS_IN_FLIGHT.discard(call_id)
-    if capped:
-        BUDGET.add(f"reports:{visitor}")
     return {"url": f"/reports/{call_id}"}
 
 

@@ -289,9 +289,15 @@ def test_demo_voices_are_private_and_capped(public, monkeypatch):
         made.append(owner)
         return {"id": f"{len(made):012x}", "name": name, "honeypot": False}
 
-    monkeypatch.setattr(enrol, "enrol", fake_enrol)
+    async def failing(*args, **kwargs):
+        raise enrol.EnrolError("too short")
+
     form = {"name": "Rahul", "consent": "true"}
     files = {"audio": ("r.wav", b"x")}
+    monkeypatch.setattr(enrol, "enrol", failing)
+    assert public.post("/api/voices", data=form, files=files, headers={"x-visitor": "visitor-a"}).status_code == 400
+    assert main.BUDGET.used("voices") == 0  # a failed clone is refunded
+    monkeypatch.setattr(enrol, "enrol", fake_enrol)
     for _ in range(3):
         assert public.post("/api/voices", data=form, files=files, headers={"x-visitor": "visitor-a"}).status_code == 200
     r = public.post("/api/voices", data=form, files=files, headers={"x-visitor": "visitor-a"})
