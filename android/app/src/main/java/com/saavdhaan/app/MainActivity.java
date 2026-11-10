@@ -111,7 +111,7 @@ public class MainActivity extends Activity {
     private static boolean validLink(String url) {
         if (url == null) return false;
         Uri u = Uri.parse(url.trim());
-        return "https".equalsIgnoreCase(u.getScheme()) && u.getHost() != null && u.getQueryParameter("t") != null;
+        return "https".equalsIgnoreCase(u.getScheme()) && u.getHost() != null; // ?t= is optional: public demos need none
     }
 
     @SuppressWarnings("deprecation")
@@ -139,11 +139,11 @@ public class MainActivity extends Activity {
         TextView title = text("सावधान · Saavdhaan", 30, true);
         TextView help = text("आसान तरीका: फ़ोन के ब्राउज़र में Saavdhaan पेज खोलें और ऊपर “ऐप” दबाएँ।\n"
                 + "Easiest: open the Saavdhaan page in the phone's browser and tap “App” at the top.\n\n"
-                + "या अपना लिंक (?t=… वाला) यहाँ डालें · Or paste your link (the one with ?t=…): "
+                + "या अपना लिंक यहाँ डालें · Or paste your link: "
                 + "your server's address, or the link python -m app.serve prints on the laptop.", 17, false);
         EditText link = new EditText(this);
         link.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        link.setHint("https://saavdhaan.onrender.com/?t=…");
+        link.setHint("https://saavdhaan.onrender.com");
         link.setText(prefs.getString(KEY_URL, ""));
         link.setTextSize(18);
         Button go = new Button(this);
@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
         go.setOnClickListener(v -> {
             String url = link.getText().toString().trim();
             if (!validLink(url)) {
-                err.setText("लिंक https://…/?t=… जैसा होना चाहिए · The link must look like https://…/?t=…");
+                err.setText("लिंक https:// से शुरू होना चाहिए · The link must start with https://");
                 return;
             }
             prefs.edit().putString(KEY_URL, url).apply();

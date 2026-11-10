@@ -221,3 +221,93 @@ def test_apk_unavailable_without_cache_is_a_clear_503(client, monkeypatch):
     r = client.get("/saavdhaan.apk")
     assert r.status_code == 503 and "not available" in r.text
     assert r.headers["content-type"].startswith("text/html")  # never saved as a file
+
+
+# ---- public demo mode ---------------------------------------------------------------------
+from starlette.websockets import WebSocketDisconnect  # noqa: E402
+
+from app import demo, enrol  # noqa: E402
+
+
+@pytest.fixture
+def public(client, monkeypatch):
+    monkeypatch.setattr(main.settings, "public_demo", True)
+    monkeypatch.setattr(main.settings, "app_token", "owner-secret")
+    monkeypatch.setattr(main, "BUDGET", demo.Budget())
+    main.ACTIVE.clear()
+    return client
+
+
+def refused(ws, code=4429):
+    msg = receive_until(ws, "limit")
+    with pytest.raises(WebSocketDisconnect) as e:
+        ws.receive_text()
+    assert e.value.code == code
+    return msg["message"]
+
+
+def test_budget_counts_per_day_and_resets():
+    day = ["2026-11-10"]
+    b = demo.Budget(today=lambda: day[0])
+    assert b.take("x", 2) and b.take("x", 2) and not b.take("x", 2)
+    day[0] = "2026-11-11"
+    assert b.used("x") == 0 and b.take("x", 2)
+
+
+def test_demo_needs_no_token_but_caps_calls_per_visitor_and_in_total(public):
+    with public.websocket_connect("/ws?call=a1&visitor=visitor-a") as a1:
+        receive_until(a1, "ready")
+        with public.websocket_connect("/ws?call=a2&visitor=visitor-a") as a2:
+            assert "already listening" in refused(a2)
+        with public.websocket_connect("/ws?call=a1&visitor=visitor-a") as again:  # own reconnect is fine
+            receive_until(again, "ready")
+        # the reconnect has closed, so call a1 is no longer live: three new visitors fill the demo
+        with public.websocket_connect("/ws?call=b1&visitor=visitor-b") as b1, \
+                public.websocket_connect("/ws?call=c1&visitor=visitor-c") as c1, \
+                public.websocket_connect("/ws?call=e1&visitor=visitor-e") as e1:
+            for ws in (b1, c1, e1):
+                receive_until(ws, "ready")
+            with public.websocket_connect("/ws?call=d1&visitor=visitor-d") as d1:
+                assert "busy" in refused(d1)
+            with public.websocket_connect("/ws?call=o1&visitor=visitor-o&token=owner-secret") as owner:
+                receive_until(owner, "ready")  # the owner skips the caps
+
+
+def test_demo_call_stops_at_the_length_cap(public, monkeypatch):
+    monkeypatch.setattr(main.settings, "demo_call_max_minutes", 0)
+    with public.websocket_connect("/ws?call=long1&visitor=visitor-a") as ws:
+        receive_until(ws, "ready")
+        ws.send_bytes(b"\0" * 3200)
+        assert "stop after 0 minutes" in refused(ws)
+    assert "long1" not in main.ACTIVE
+
+
+def test_demo_voices_are_private_and_capped(public, monkeypatch):
+    made = []
+
+    async def fake_enrol(audio, name, consent, honeypot=False, owner=None):
+        made.append(owner)
+        return {"id": f"{len(made):012x}", "name": name, "honeypot": False}
+
+    monkeypatch.setattr(enrol, "enrol", fake_enrol)
+    form = {"name": "Rahul", "consent": "true"}
+    files = {"audio": ("r.wav", b"x")}
+    for _ in range(3):
+        assert public.post("/api/voices", data=form, files=files, headers={"x-visitor": "visitor-a"}).status_code == 200
+    r = public.post("/api/voices", data=form, files=files, headers={"x-visitor": "visitor-a"})
+    assert r.status_code == 429 and "Demo limit" in r.json()["detail"]
+    assert made == ["visitor-a"] * 3
+    assert public.get("/api/voices").status_code == 400  # no visitor id
+    assert public.post("/api/voices?token=owner-secret", data=form, files=files,
+                       headers={"x-visitor": "visitor-a"}).status_code == 200  # owner: no cap
+
+
+def test_voice_owner_filter(tmp_path, monkeypatch):
+    monkeypatch.setattr(enrol.settings, "data_dir", tmp_path)
+    for vid, owner in (("aaaaaaaaaaaa", "visitor-a"), ("bbbbbbbbbbbb", "visitor-b")):
+        (enrol._dir() / f"{vid}.json").write_text(json.dumps(
+            {"id": vid, "name": vid, "consent": True, "embedding": "e", "owner": owner}))
+    assert [v["id"] for v in enrol.voices("visitor-a")] == ["aaaaaaaaaaaa"]
+    assert len(enrol.voices()) == 2  # one household: every voice is theirs
+    assert enrol.load("bbbbbbbbbbbb", "visitor-a") is None
+    assert not enrol.delete("bbbbbbbbbbbb", "visitor-a") and enrol.delete("bbbbbbbbbbbb", "visitor-b")

@@ -12,7 +12,7 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-15233f?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-15233f?style=flat-square&logo=fastapi&logoColor=white)
 ![Gnani](https://img.shields.io/badge/Gnani-Prisma%20v3.0%20%C2%B7%20Timbre%20v3.0-15233f?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-204%20passing-17643a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-209%20passing-17643a?style=flat-square)
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
 ![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
@@ -162,6 +162,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk   # or copy the APK to 
 
 Open the app, paste the link printed by `app.serve`, compare the fingerprint, and tap **Trust**. Press Back on the main page to change the laptop link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
 
+### Public demo mode (no token)
+
+For reviewers, set `PUBLIC_DEMO=1` on the server. The app then opens for anyone without `?t=`, and these guards replace the token:
+
+- **Private voices:** each browser or app gets a random visitor id, and family voices are visible and usable only by the visitor who recorded them. Reports already use unguessable call ids.
+- **Daily caps** (environment variables, defaults in `app/config.py`):
+
+| Setting | Default |
+|---|---|
+| `DEMO_MINUTES_PER_DAY` | 300 minutes of live listening, all visitors together |
+| `DEMO_CALLS_PER_VISITOR` / `DEMO_CALLS_TOTAL` | 1 / 3 calls at the same time |
+| `DEMO_CALL_MAX_MINUTES` | 15 |
+| `DEMO_VOICES_PER_VISITOR` / `DEMO_VOICES_TOTAL` | 3 / 20 voice clones a day |
+| `DEMO_HONEYPOT_TURNS_PER_DAY` | 200 honeypot replies |
+| `DEMO_REPORTS_PER_VISITOR` | 5 reports a day |
+
+When a cap is reached, the page says so in Hindi and English and stops listening instead of retrying. Opening the app once with `?t=<APP_TOKEN>` skips the caps for the owner. Counters are kept in memory, so a server restart resets them.
+
 ### Check the API connection (a few credits)
 
 ```bash
@@ -176,7 +194,7 @@ Steps 1–3 are free and need no network. Commands use the Windows path; use `.v
 **1. Unit tests.** Every Gnani and Groq call is mocked, and the tests never read your `.env`.
 
 ```bash
-.venv/Scripts/python -m pytest -q          # 204 passed
+.venv/Scripts/python -m pytest -q          # 209 passed
 ```
 
 **2. Talk to the tracker directly.**

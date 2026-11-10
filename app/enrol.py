@@ -45,7 +45,7 @@ def _read(path: Path) -> dict | None:
         return None  # a half-written or corrupt file counts as absent
 
 
-async def enrol(audio: bytes, name: str, consent: bool, honeypot: bool = False) -> dict:
+async def enrol(audio: bytes, name: str, consent: bool, honeypot: bool = False, owner: str | None = None) -> dict:
     """`honeypot`: the speaker also agrees that this voice may talk to scam callers in
     honeypot mode. Only the owner of the voice should give that; it is stored with the voice."""
     if not consent:
@@ -64,26 +64,31 @@ async def enrol(audio: bytes, name: str, consent: bool, honeypot: bool = False) 
         raise EnrolError(f"recording must be {MIN_S}-{MAX_S} seconds, got {seconds:.1f}")
     embedding = await gnani.clone_embedding(wav, "reference.wav")
     record = {"id": uuid.uuid4().hex[:12], "name": name, "consent": True, "honeypot": bool(honeypot),
-              "consented_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "embedding": embedding}
+              "consented_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "embedding": embedding, "owner": owner}
     _path(record["id"]).write_text(json.dumps(record), encoding="utf-8")
     return {"id": record["id"], "name": name, "honeypot": record["honeypot"]}
 
 
-def load(voice_id: str) -> dict | None:
+def _mine(record: dict, owner: str | None) -> bool:
+    """owner None: one household, every voice is theirs. Public demo: only the visitor's own voices."""
+    return owner is None or record.get("owner") == owner
+
+
+def load(voice_id: str, owner: str | None = None) -> dict | None:
     path = _path(voice_id)
     record = _read(path) if path and path.exists() else None
-    return record if record and record.get("consent") else None
+    return record if record and record.get("consent") and _mine(record, owner) else None
 
 
-def voices() -> list[dict]:
+def voices(owner: str | None = None) -> list[dict]:
     records = (_read(p) for p in sorted(_dir().glob("*.json")))
     return [{"id": r["id"], "name": r["name"], "honeypot": bool(r.get("honeypot"))}
-            for r in records if r and r.get("consent")]
+            for r in records if r and r.get("consent") and _mine(r, owner)]
 
 
-def delete(voice_id: str) -> bool:
+def delete(voice_id: str, owner: str | None = None) -> bool:
     path = _path(voice_id)
-    if not path or not path.exists():
+    if not path or not path.exists() or not _mine(_read(path) or {}, owner):
         return False
     path.unlink()
     shutil.rmtree(cache_dir(voice_id), ignore_errors=True)

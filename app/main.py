@@ -18,7 +18,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Web
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alerts, enrol, gnani, honeypot, report
+from app import alerts, demo, enrol, gnani, honeypot, report
 from app.honeypot import Evidence
 from app.extraction_order import OrderedResults
 from app.config import settings
@@ -50,6 +50,7 @@ class Call:
     fillers: dict = field(default_factory=dict)  # (persona voice, line) -> audio, synthesised once per call
     filler_turn: int = 0
     filler_langs: set = field(default_factory=set)  # (persona voice, language) already warmed
+    listened_s: float = 0.0  # audio received for this call, for the demo call-length cap
 
 
 CALLS: dict[str, Call] = {}
@@ -57,6 +58,8 @@ MAX_CALLER_TURN = 1000  # chars of one unbroken caller turn sent to the models
 FILLER_AFTER_S = 1.2  # a persona reply slower than this gets a short filler line first
 MAX_CALLS = 50  # ponytail: in-memory call state, oldest dropped first; a store if this ever runs as a service
 CALL_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
+BUDGET = demo.Budget()
+ACTIVE: dict[str, str] = {}  # public demo: call id -> visitor, for calls with a live socket
 
 
 def token_ok(token: str | None) -> bool:
@@ -66,10 +69,26 @@ def token_ok(token: str | None) -> bool:
     return hmac.compare_digest((token or "").encode(), settings.app_token.encode())
 
 
+def is_owner(token: str | None) -> bool:
+    return bool(settings.app_token) and token_ok(token)
+
+
+def visitor_of(request: Request) -> tuple[str | None, bool]:
+    """(visitor, capped). Outside demo mode there is no visitor and no cap: the token already gates everything."""
+    if not settings.public_demo:
+        return None, False
+    visitor = request.headers.get("x-visitor", "")
+    if not demo.VISITOR.fullmatch(visitor):
+        raise HTTPException(400, "missing visitor id: reload the page")
+    token = request.query_params.get("token") or request.headers.get("x-app-token")
+    return visitor, not is_owner(token)
+
+
 @app.middleware("http")
 async def require_token(request: Request, call_next):
-    """The page itself is public; anything that spends credits or shows call data needs the token."""
-    if request.url.path.startswith(("/api/", "/reports/")):
+    """The page itself is public; anything that spends credits or shows call data needs the token,
+    unless this is a public demo, where daily caps protect the credits instead."""
+    if request.url.path.startswith(("/api/", "/reports/")) and not settings.public_demo:
         token = request.query_params.get("token") or request.headers.get("x-app-token")
         if not token_ok(token):
             return JSONResponse({"detail": "missing or wrong access token"}, status_code=401)
@@ -87,16 +106,41 @@ def save_recording(call_id: str, pcm: bytes) -> Path:
     return path
 
 
+async def refuse(ws: WebSocket, message: str):
+    """Demo limit: the page shows the message and stops listening instead of reconnecting."""
+    await ws.send_text(json.dumps({"type": "limit", "message": message}, ensure_ascii=False))
+    await ws.close(code=4429)
+
+
 @app.websocket("/ws")
 async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, token: str = "", hpvoice: str = "",
-                   silent: int = 0):
+                   silent: int = 0, visitor: str = ""):
     await ws.accept()  # accept first: a close before accept reaches the browser as 1006, not our code
-    if not token_ok(token):
+    if not settings.public_demo and not token_ok(token):
         await ws.close(code=4401)
         return
     if not CALL_ID.fullmatch(call):  # the id becomes a file name for recordings
         await ws.close(code=1008)
         return
+    capped = settings.public_demo and not is_owner(token)
+    if settings.public_demo:
+        if not demo.VISITOR.fullmatch(visitor):
+            await ws.close(code=1008)
+            return
+        # family voices: only this visitor's own
+        if voice.startswith(alerts.FAMILY) and not enrol.load(voice[len(alerts.FAMILY):], visitor):
+            voice = ""
+        if hpvoice.startswith(alerts.FAMILY) and not enrol.load(hpvoice[len(alerts.FAMILY):], visitor):
+            hpvoice = ""
+    if capped:
+        if ACTIVE.get(call) != visitor:  # a reconnect of the visitor's own call is always allowed
+            if sum(v == visitor for v in ACTIVE.values()) >= settings.demo_calls_per_visitor:
+                return await refuse(ws, demo.ONE_CALL)
+            if len(ACTIVE) >= settings.demo_calls_total:
+                return await refuse(ws, demo.BUSY)
+        if BUDGET.used("listen_s") >= settings.demo_minutes_per_day * 60:
+            return await refuse(ws, demo.LIMIT)
+        ACTIVE[call] = visitor
     state = CALLS.pop(call, None) or Call()
     CALLS[call] = state  # most recently used last
     while len(CALLS) > MAX_CALLS:
@@ -259,6 +303,10 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                 turn_started = time.monotonic()
                 asked = state.history[-1]["content"]
                 turns = sum(m["role"] == "assistant" for m in state.history)
+                if capped and not BUDGET.take("honeypot_turns", settings.demo_honeypot_turns_per_day):
+                    await send({"type": "limit", "message": demo.LIMIT})
+                    await set_honeypot(False, "limit", lang)
+                    return
                 closing_now = (state.closing or turns >= honeypot.MAX_EXCHANGES - 1 or
                                time.monotonic() - state.honeypot_started >= honeypot.MAX_HONEYPOT_S)
                 plan = honeypot.plan_turn(state.history, state.evidence)
@@ -360,6 +408,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
         await stream.start()
     except Exception as e:  # bad key, no network, concurrency cap
         await send({"type": "error", "message": f"could not reach speech service: {e}"})
+        if ACTIVE.get(call) == visitor and state.socket is ws:
+            ACTIVE.pop(call, None)
         await ws.close()
         return
     await send({"type": "ready", "explain": state.tracker.explain()})
@@ -369,6 +419,16 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             if msg["type"] == "websocket.disconnect":
                 break
             if msg.get("bytes"):
+                if capped:  # 16 kHz int16 mono: 32000 bytes a second
+                    seconds = len(msg["bytes"]) / 32000
+                    state.listened_s += seconds
+                    BUDGET.add("listen_s", seconds)
+                    if state.listened_s > settings.demo_call_max_minutes * 60:
+                        await refuse(ws, demo.TOO_LONG.format(minutes=settings.demo_call_max_minutes))
+                        break
+                    if BUDGET.used("listen_s") > settings.demo_minutes_per_day * 60:
+                        await refuse(ws, demo.LIMIT)
+                        break
                 await stream.send_audio(msg["bytes"])
                 if record:
                     state.pcm += msg["bytes"]
@@ -384,6 +444,8 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
                         await set_honeypot(False, "user")
                     elif not settings.groq_api_key:
                         await send({"type": "error", "message": "honeypot needs GROQ_API_KEY"})
+                    elif capped and BUDGET.used("honeypot_turns") >= settings.demo_honeypot_turns_per_day:
+                        await send({"type": "limit", "message": demo.LIMIT})
                     elif state.tracker.level() < 2:
                         await send({"type": "error", "message": "honeypot is only allowed once the call is L2 or higher"})
                     else:
@@ -399,30 +461,40 @@ async def guardian(ws: WebSocket, call: str, voice: str = "", record: int = 0, t
             await set_honeypot(False, "ended")
         if state.socket is ws:
             state.socket = None
+            ACTIVE.pop(call, None)
         if record and state.pcm:  # saved first: the report button may be pressed the moment the call stops
             await asyncio.to_thread(save_recording, call, bytes(state.pcm))
         await stream.close()
 
 
 @app.post("/api/voices")
-async def enrol_voice(audio: UploadFile = File(...), name: str = Form(...), consent: bool = Form(False),
-                      honeypot: bool = Form(False)):
+async def enrol_voice(request: Request, audio: UploadFile = File(...), name: str = Form(...),
+                      consent: bool = Form(False), honeypot: bool = Form(False)):
+    visitor, capped = visitor_of(request)
+    mine = f"voices:{visitor}"
+    if capped and (BUDGET.used(mine) >= settings.demo_voices_per_visitor
+                   or BUDGET.used("voices") >= settings.demo_voices_total):
+        raise HTTPException(429, demo.LIMIT)
     try:
-        return await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent, honeypot)
+        voice = await enrol.enrol(await audio.read(enrol.MAX_UPLOAD_BYTES + 1), name, consent, honeypot, visitor)
     except enrol.EnrolError as e:
         raise HTTPException(400, str(e))
     except gnani.GnaniError as e:
         raise HTTPException(502, f"voice service failed: {e}")
+    if capped:  # only successful clones count
+        BUDGET.add(mine)
+        BUDGET.add("voices")
+    return voice
 
 
 @app.get("/api/voices")
-def list_voices():
-    return enrol.voices()
+def list_voices(request: Request):
+    return enrol.voices(visitor_of(request)[0])
 
 
 @app.delete("/api/voices/{voice_id}")
-def delete_voice(voice_id: str):
-    if not enrol.delete(voice_id):
+def delete_voice(voice_id: str, request: Request):
+    if not enrol.delete(voice_id, visitor_of(request)[0]):
         raise HTTPException(404, "no such voice")
     return {"deleted": voice_id}
 
@@ -437,7 +509,8 @@ def _call_file(folder: str, call_id: str, ext: str) -> Path:
 
 
 @app.post("/api/report/{call_id}")
-async def make_report(call_id: str):
+async def make_report(call_id: str, request: Request):
+    visitor, capped = visitor_of(request)
     out = _call_file("reports", call_id, "html")
     wav = _call_file("calls", call_id, "wav")
     if out.exists():  # batch STT costs credits: one report per call
@@ -446,6 +519,8 @@ async def make_report(call_id: str):
         raise HTTPException(404, "this call was not recorded (recording is opt-in)")
     if call_id in REPORTS_IN_FLIGHT:
         raise HTTPException(409, "the report is already being made")
+    if capped and BUDGET.used(f"reports:{visitor}") >= settings.demo_reports_per_visitor:
+        raise HTTPException(429, demo.LIMIT)
     REPORTS_IN_FLIGHT.add(call_id)
     try:
         await report.build(wav)
@@ -453,6 +528,8 @@ async def make_report(call_id: str):
         raise HTTPException(502, f"report failed: {e}")
     finally:
         REPORTS_IN_FLIGHT.discard(call_id)
+    if capped:
+        BUDGET.add(f"reports:{visitor}")
     return {"url": f"/reports/{call_id}"}
 
 

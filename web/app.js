@@ -35,10 +35,13 @@ const store = {
   }
 })();
 const withToken = (path) => `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(store.get("token", ""))}`;
-const api = (path, opts) => fetch(withToken(path), opts);
+// random id for this browser or app: in a public demo, family voices and limits belong to it
+const visitor = store.get("visitor", "") || (() => { const v = crypto.randomUUID(); store.set("visitor", v); return v; })();
+const api = (path, opts = {}) => fetch(withToken(path), { ...opts, headers: { ...opts.headers, "x-visitor": visitor } });
 
 let ws = null, ctx = null, mic = null, node = null, wakeLock = null;
 let listening = false, callId = null, retry = 0;
+let limitMsg = "";
 let muted = false, lastSpeechEnd = null, failures = 0, alertPending = false, level = 0, honeypotOn = false;
 const queue = []; // alert audio plays one clip at a time
 let playing = false;
@@ -328,7 +331,7 @@ function stopAudio() {
 // ---- socket ---------------------------------------------------------------
 function connect() {
   const q = new URLSearchParams({ call: callId, voice: store.get("voice", "Shivani"), record: store.get("record", "0"),
-    token: store.get("token", ""), hpvoice: store.get("hp-voice", ""),
+    token: store.get("token", ""), hpvoice: store.get("hp-voice", ""), visitor,
     silent: store.get("hp-allow", "0") }); // honeypot allowed: warnings on screen only, never spoken into the call
   const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?${q}`);
   ws = sock;
@@ -351,12 +354,18 @@ function connect() {
       $("hp-done").hidden = !["evidence", "timeout"].includes(m.reason);
       if (m.proof) renderProof(m.proof, m.facts);
       renderHoneypot();
-    } else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
+    } else if (m.type === "limit") { limitMsg = m.message; conn(m.message); }
+    else if (m.type === "error") conn(`गड़बड़ · Problem: ${m.message}`);
   };
   sock.onclose = (e) => {
     if (sock === ws && honeypotOn) { // the server ends honeypot mode when the socket drops
       honeypotOn = false;
       renderHoneypot();
+    }
+    if (e.code === 4429 && sock === ws) { // demo limit: stop instead of reconnecting
+      if (listening) toggle();
+      conn(limitMsg || "आज की डेमो सीमा पूरी हो गई · Demo limit reached for today");
+      return;
     }
     if (e.code === 4401 && sock === ws) {
       if (listening) toggle();
@@ -441,8 +450,8 @@ initSettings();
 (() => {
   const ua = navigator.userAgent, a = $("get-app"), token = store.get("token", "");
   if (/; wv\)/.test(ua)) { a.hidden = true; return; } // already inside the app
-  if (!/Android/i.test(ua) || !token) return; // elsewhere it is a plain APK download
-  const link = `${location.origin}/?t=${encodeURIComponent(token)}`;
+  if (!/Android/i.test(ua)) return; // elsewhere it is a plain APK download
+  const link = token ? `${location.origin}/?t=${encodeURIComponent(token)}` : `${location.origin}/`;
   a.href = `intent://open?u=${encodeURIComponent(link)}#Intent;scheme=saavdhaan;package=com.saavdhaan.app;`
     + `S.browser_fallback_url=${encodeURIComponent(`${location.origin}/saavdhaan.apk`)};end`;
 })();
