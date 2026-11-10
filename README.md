@@ -16,7 +16,9 @@ and speaks a warning in the caller's language, or in a family member's voice, *b
 ![PWA](https://img.shields.io/badge/phone-installable%20PWA-15233f?style=flat-square)
 ![Data](https://img.shields.io/badge/data-100%25%20synthetic-7a4f00?style=flat-square)
 
-[How it works](#how-it-works) · [Screens](#the-guardian-page) · [Quick start](#quick-start) · [Testing](#testing-it-step-by-step) · [SaavdhaanBench](#saavdhaanbench) · [Project layout](#project-layout)
+**Live demo: <https://saavdhaan.onrender.com>** (no sign-up; daily limits apply)
+
+[How it works](#how-it-works) · [Screens](#the-guardian-page) · [Quick start](#quick-start) · [Deploy](#deploy-free-on-render) · [Testing](#testing-it-step-by-step) · [SaavdhaanBench](#saavdhaanbench) · [Project layout](#project-layout)
 
 <br>
 
@@ -43,7 +45,7 @@ A keyword spotter fires on every bank call that says “OTP”. Saavdhaan follow
 <p align="center"><img src="docs/img/architecture.svg" width="100%" alt="Architecture: a phone call on speaker reaches the listener device's microphone; the browser PWA streams 16 kHz PCM over a WebSocket to a FastAPI backend whose guardian bridge feeds SttStream, which talks to Gnani Prisma v3.0. Transcripts go to the Tracker; rising levels trigger Alerts synthesised by Gnani Timbre v3.0 and played back to the elder. Honeypot uses Groq and Timbre, Enrol uses Gnani voice clone, Report uses Gnani batch STT. YAML lexicons and a gitignored data folder sit underneath."></p>
 
 - **Phones can't share call audio with an app on the same phone**, so the guardian runs on a second device (a laptop, or an old phone or tablet) next to the call phone's speaker.
-- **The API key never reaches the browser.** Browsers can't set WebSocket headers, so the backend holds the Gnani key and bridges audio. API, WebSocket and report routes are protected by an access token.
+- **The API key never reaches the browser.** Browsers can't set WebSocket headers, so the backend holds the Gnani key and bridges audio. API, WebSocket and report routes are protected by an access token or, in [public demo mode](#public-demo-mode-no-token), by private per-visitor data and daily usage limits.
 - **One call, one state.** The tracker lives on the backend under a call id. It survives browser reconnects and the 15-minute STT session cap; `SttStream` rotates sessions early and seeds each new one with `previous_text`.
 
 ### The scam kill chain
@@ -117,7 +119,7 @@ Built for an elderly reader: large type, Hindi and English side by side, level s
   - **Verified facts:** a fact is accepted only when its words appear in the caller's transcript. The source line is saved and shown beside the fact. A hard reply cap and time limit end the trap with a spoken goodbye.
   - **Pressure tests:** `python -m bench.honeypot_sim --case digital_arrest_en` previews a scripted caller replay; add `--run` to use Groq credits and save its transcript under `bench/out/honeypot/`. `python -m bench.honeypot --strict data/honeypot/*.json` scores saved conversations for unsupported facts, silence, digits, payment claims, repetition, and latency. The replay checks text behavior; a speakerphone check is still needed for echo and interruption quality.
 - **Post-call report (opt-in recording):** batch STT with speaker separation produces a one-page report: stage timeline, who said what, and a draft complaint for 1930 / Chakshu.
-- **Phone app:** an installable PWA served over HTTPS on your Wi-Fi, protected by an access token, with the screen kept awake while listening.
+- **Phone app:** the page installs as a PWA (**Install** in the top bar, where the browser offers it), or as the Android app (**App** in the top bar), with the screen kept awake while listening. It runs from a hosted server or from a laptop on your Wi-Fi.
 
 ## Quick start
 
@@ -147,9 +149,28 @@ Open <http://127.0.0.1:8000>, press **Start listening**, and put the call on spe
 
 Open the printed `https://<laptop-ip>:8443/?t=<token>` link on a **second** phone (or tablet) on the same Wi-Fi, accept the self-signed certificate warning, and place it next to the call phone's speaker. “Add to Home screen” gives a shortcut, and the token is remembered on that device.
 
+### Deploy (free, on Render)
+
+The repo has a `Dockerfile` (Python 3.14, ffmpeg, the app on `$PORT`), so any Docker host works. On Render's free tier:
+
+1. **New → Web Service**, connect the GitHub repo. Language **Docker**, branch `main`, region **Singapore**, instance **Free**.
+2. **Environment:** `GNANI_API_KEY`, `APP_TOKEN` (a long random string), and the other keys from [Configuration](#configuration-env). Add `PUBLIC_DEMO=1` to let anyone try it within [daily limits](#public-demo-mode-no-token). Add `GITHUB_TOKEN` to serve the APK while the repo is private.
+3. **Deploy.** Every push to `main` redeploys.
+
+Render's HTTPS certificate is trusted by phones, so there is no certificate warning or fingerprint step. Two free-tier limits:
+
+- **Sleep:** the service sleeps after 15 minutes without requests, and the next visit takes about a minute. A free monitor (for example cron-job.org) opening the page every 10 minutes keeps it awake.
+- **Disk:** the disk is reset on every restart or deploy. Enrolled voices, recordings and reports are lost then; cached alert audio is rebuilt on demand.
+
 ### Android app (APK)
 
-`android/` is a small native wrapper (one Java activity, no third-party libraries) around the same page. It adds what a browser tab lacks: an installed icon, mic permission granted once, the screen kept on, and **certificate pinning** instead of a browser warning. On first connect it shows the laptop certificate's SHA-256 fingerprint; `python -m app.serve` prints the same fingerprint, and the app trusts only that certificate. API keys stay on the laptop.
+`android/` is a small native wrapper (one Java activity, no third-party libraries) around the same page. It adds what a browser tab lacks: an installed icon, mic permission granted once and the screen kept on. API keys stay on the server.
+
+**Install from the page:** open the server's page in the phone's browser and tap **App** in the top bar. If the app is missing, the APK downloads; once it is installed, the same button opens the app already connected to that server, so no link is pasted. The app asks once before it switches to a new server, so another website cannot redirect it.
+
+**With a laptop server** (`python -m app.serve`), the app uses **certificate pinning** instead of a browser warning: on first connect it shows the laptop certificate's SHA-256 fingerprint, `app.serve` prints the same fingerprint, and the app trusts only that certificate.
+
+To build it yourself:
 
 ```powershell
 cd android
@@ -158,9 +179,9 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk   # or copy the APK to the phone and open it
 ```
 
-**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so that link works only in a browser signed in to GitHub. A deployed server serves the same APK without GitHub at `/saavdhaan.apk`, given a read-only `GITHUB_TOKEN` (fine-grained, Contents: read) in its environment. The **App** button in the page's top bar downloads it; on an Android phone that already has the app, it opens the app connected to that server, so no link has to be pasted (the app asks once before switching servers).
+**Download the latest APK:** <https://github.com/buildwithsoumya/saavdhaan/releases/latest/download/saavdhaan.apk> (or the [Releases](https://github.com/buildwithsoumya/saavdhaan/releases) page). Every change to `android/` on `main` makes GitHub Actions build a signed APK and publish it as a new release (`.github/workflows/android-release.yml`). Updates install over the previous version and keep its settings. The repository is private, so that link works only in a browser signed in to GitHub. A deployed server serves the same APK at `/saavdhaan.apk` (the **App** button), fetched from the latest release with a read-only `GITHUB_TOKEN` (fine-grained, this repo only, **Contents: Read-only**) and cached for an hour.
 
-Open the app, paste the link printed by `app.serve`, compare the fingerprint, and tap **Trust**. Press Back on the main page to change the laptop link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
+Without the App button, open the app and paste the server's link (`https://…`, with `?t=<token>` unless the server is a public demo). For a laptop, paste the link printed by `app.serve`, compare the fingerprint and tap **Trust**. Press Back on the main page to change the link. Keep the app in the foreground while listening: Android stops the microphone for apps in the background.
 
 ### Public demo mode (no token)
 
@@ -224,7 +245,9 @@ Try a negative such as `"Never share your OTP with anyone"`: it stays at 0.
 |---|---|
 | `GNANI_API_KEY` | Gnani API key (required) |
 | `ALERT_VOICE` | Timbre v3.0 voice for warnings (default `Shivani`) |
-| `APP_TOKEN` | Access token for API, WebSocket and reports; required by `app.serve` |
+| `APP_TOKEN` | Access token for API, WebSocket and reports; required by `app.serve`. In public demo mode it is the owner's key that skips the limits |
+| `PUBLIC_DEMO` | `1`: anyone can use the app without the token, within the `DEMO_*` daily limits ([details](#public-demo-mode-no-token)) |
+| `GITHUB_TOKEN` | Read-only GitHub token so the server can offer the APK while the repo is private |
 | `GROQ_API_KEY`, `GROQ_MODEL` | LLM for honeypot replies (default `openai/gpt-oss-120b`) |
 | `HONEYPOT_PERSONA` | Who the honeypot plays, so the words match the voice (default `elderly woman`; e.g. `elderly man`) |
 | `HONEYPOT_VOICE` | Timbre v3.0 voice for honeypot mode when the elder has not chosen their own consented voice (default `Vasudha`) |
@@ -339,7 +362,8 @@ Seven role-played calls, recorded on 6–7 Nov 2026. A volunteer read a made-up 
 
 ```
 app/
-  main.py       FastAPI app: page, WebSocket bridge browser ⇄ backend ⇄ Gnani, voices/report APIs, token check
+  main.py       FastAPI app: page, WebSocket bridge browser ⇄ backend ⇄ Gnani, voices/report APIs, token check, APK download
+  demo.py       public demo mode: visitor ids and daily usage counters
   gnani.py      Gnani clients: realtime STT (reconnect + previous_text), TTS REST/SSE, voice clone, batch STT
   tracker.py    scam kill-chain tracker, negation guard, alert levels, explanations
   alerts.py     spoken alerts per level and language, cached on disk
@@ -352,7 +376,8 @@ app/
 web/            index.html, app.js, styles.css, PWA manifest, service worker, icons, fonts (OFL)
 bench/          calls/*.yaml, seed.py, render.py, degrade.py, run.py, report.py
 tests/          pytest suite; every Gnani and Groq call is mocked
-android/        Android app: WebView wrapper with mic permission, keep-awake and certificate pinning
+android/        Android app: WebView wrapper with mic permission, keep-awake, app links and certificate pinning
+Dockerfile      container image for Render or any Docker host
 docs/
   diagrams/     LaTeX/TikZ sources for the diagrams above + build.ps1
   img/          rendered SVG diagrams
@@ -371,8 +396,9 @@ The diagrams are LaTeX (TikZ) in the app's own colours. To rebuild them after a 
 - Speakerphone audio mixes both sides of the call. The tracker does not separate the caller from the elder, and the elder must stay silent during honeypot mode.
 - In a browser, the self-signed certificate lets the phone use the mic but not install an offline app. The Android app gives an installed app with pinned trust instead; a trusted certificate also fixes it.
 - `app.serve` renews its certificate every 25 days. The Android app then asks to trust the new fingerprint; an open page may need a reload (Back → Change laptop link → Connect) before listening works again.
-- The Android app is sideloaded from GitHub Releases. A Play Store release would also need a foreground service for listening with the screen off.
+- The Android app is sideloaded (from the page's **App** button or GitHub Releases), so Android shows an "unknown app" warning on first install. A Play Store release would also need a foreground service for listening with the screen off.
 - Release APKs are signed with one key kept outside the repo (GitHub secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`). Losing that key means installed apps cannot be updated; users would have to uninstall first.
+- Public demo limits are counted in memory, so a server restart resets them. Visitor ids live in the browser: clearing site data starts a new visitor, which is why the daily totals, not the per-visitor limits, are the real spending cap.
 - Speaker labels in reports come from automatic diarization and can be wrong.
 - Saavdhaan warns and points to the national cyber-crime helpline **1930**. It never blocks a call or acts for the user.
 
